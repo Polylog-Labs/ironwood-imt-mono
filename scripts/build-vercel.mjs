@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 
 // Emit Vercel's Build Output API directly; the explorer needs no bundler or functions.
 const root = new URL("../", import.meta.url);
@@ -91,7 +91,16 @@ for (const file of [
   "apple-touch-icon.png",
   "share.png",
 ]) {
-  await copyFile(new URL(`web/${file}`, root), new URL(`static/${file}`, output));
+  const source = new URL(`web/${file}`, root);
+  const destination = new URL(`static/${file}`, output);
+  if (file.endsWith(".html")) {
+    // Vercel's script records pageviews automatically. Keep local/Rust builds
+    // free of tracking and use the existing same-origin CSP without inline JS.
+    const html = await readFile(source, "utf8");
+    await writeFile(destination, html.replace("</head>", '<script defer src="/_vercel/insights/script.js"></script>\n  </head>'));
+  } else {
+    await copyFile(source, destination);
+  }
 }
 if (!api) {
   await writeFile(

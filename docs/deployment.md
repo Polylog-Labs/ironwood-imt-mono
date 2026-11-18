@@ -20,6 +20,8 @@ For a small installation, start with 1 shared vCPU, 1 GiB RAM, and 25 GiB SSD. T
 
 Vercel serves the HTML, CSS, and JavaScript and forwards `/v1/*`, `/healthz`, and `/readyz` to your VPS. The sync process and SQLite database remain on the VPS. There are no Vercel Functions or frontend package dependencies.
 
+The Vercel build adds Web Analytics to both `/` and `/ironwood` using its deferred, same-origin tracking script. Enable Web Analytics for the project before deploying; view traffic in the project's Analytics tab. Analytics requests stay on Vercel and do not hit the Rust API. Local and embedded Rust pages do not include tracking.
+
 1. Import the repository into Vercel. Set **Root Directory** to the repository root and **Framework Preset** to **Other**.
 2. Leave the build settings supplied by `vercel.json` in place: **Build Command** is `node scripts/build-vercel.mjs`; **Install Command** is empty. Leave **Output Directory** unset. Use Node.js 22 or newer. You can deploy now; the UI shows a standby view until the API is available.
 3. Make the VPS API reachable at a public HTTPS origin, for example `https://api.example.com`. Check that `/healthz` returns JSON and `/v1/dashboard` returns data. `/readyz` returns 503 until chain and mempool observations are current.

@@ -51,6 +51,13 @@ test("Vercel build packages the UI, isolates local data, and forwards only API r
   const assets = await readdir(join(output, "static"));
   assert.deepEqual(assets, await readdir(join(root, "web")));
   for (const file of assets) {
+    if (file.endsWith(".html")) {
+      const html = await readFile(join(output, "static", file), "utf8");
+      const script = '<script defer src="/_vercel/insights/script.js"></script>\n  ';
+      assert.equal(html.split(script).length, 2, `${file} tracks exactly once`);
+      assert.equal(html.replace(script, ""), await readFile(join(root, "web", file), "utf8"));
+      continue;
+    }
     assert.deepEqual(
       await readFile(join(output, "static", file)),
       await readFile(join(root, "web", file)),
