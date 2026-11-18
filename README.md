@@ -84,3 +84,7 @@ cargo run --release --locked --example check_providers
 ```
 
 The indexer verifies tree reconstruction against its provider; it relies on that provider for consensus validity. Protocol sources and implementation details are linked in the [architecture reference](docs/architecture.md#rpc-contract-and-sources).
+
+## License
+
+[MIT](LICENSE). Vendored Zcash protocol definitions retain their original copyright notices and [MIT license](proto/LICENSE).
