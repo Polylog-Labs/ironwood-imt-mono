@@ -1,0 +1,42 @@
+[package]
+name = "ironwood-indexer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+description = "An Ironwood chain indexer with verified note commitment trees and a read-only API"
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+clap = { version = "4", features = ["derive", "env"] }
+futures = "0.3"
+hex = "0.4"
+incrementalmerkletree = { version = "0.9", features = ["legacy-api"] }
+orchard = { version = "0.16", default-features = false, features = ["std"] }
+prost = "0.14"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+rusqlite = { version = "0.42", features = ["bundled", "fallible_uint"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time", "net", "sync", "fs"] }
+tokio-rusqlite = "0.9"
+tonic = { version = "0.14", features = ["tls-ring", "tls-webpki-roots"] }
+tonic-prost = "0.14"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[build-dependencies]
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[lints.rust]
+unsafe_code = "forbid"

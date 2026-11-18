@@ -1,0 +1,787 @@
+{
+  "source": "zec.rocks:443, 2026-11-18, GetBlockRange 3428143..3428152; root independently reconstructed using orchard 0.16",
+  "blocks": [
+    {
+      "height": 3428143,
+      "hash": "61d728815d2e8802cf4b98bde23eb3a617343796894edebb548b1a0000000000",
+      "prev_hash": "dd70c20a77195c4486502448d2aa0ca29d4c2b37096a3f81fd2f8b0000000000",
+      "time": 1785247643,
+      "count": 0,
+      "transactions": []
+    },
+    {
+      "height": 3428144,
+      "hash": "033425637e0b3ef1bd8b4702d73163f3da052d59876926a523901c0000000000",
+      "prev_hash": "61d728815d2e8802cf4b98bde23eb3a617343796894edebb548b1a0000000000",
+      "time": 1785247685,
+      "count": 2,
+      "transactions": [
+        {
+          "index": 2,
+          "txid": "74d5a34384f740694595644c68855dcab852cfc829461f84c551131786fc5bf1",
+          "actions": [
+            {
+              "cmx": "6c92564c58eb9e7c3bed41bc4b06aa5c870c721355eb3cf89edd5c4f1e789d3a",
+              "nullifier": "129bc15588c16f3f086bd028ca8922ec02f3aa4d98ff9bd5c0e306e74cc7bb2a"
+            },
+            {
+              "cmx": "176e50816d91436081db8617c5e05a13e13dbf858faa63d4daf8b8fbdb11a20c",
+              "nullifier": "a9fc39bab92ddbd689045371779b96f2851694a574e5795f944b9ad376811909"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "height": 3428145,
+      "hash": "dfa6f2e9ec6e6a5d0291a4bfc92d4fa988987b8929f84de9242d350000000000",
+      "prev_hash": "033425637e0b3ef1bd8b4702d73163f3da052d59876926a523901c0000000000",
+      "time": 1785247751,
+      "count": 4,
+      "transactions": [
+        {
+          "index": 1,
+          "txid": "9d43e0cc1b804c40e6d2f547b634beb99deaed1382d8847d0545d61c2177afd5",
+          "actions": [
+            {
+              "cmx": "c2982c69165241442c27116be7b84cfbd1c23d40ede073bd58873baff5f23e1a",
+              "nullifier": "1f0a3431d372bc194bfef47350bd9133a0ea22728632ed907618f6febe9b8b0d"
+            },
+            {
+              "cmx": "6255601c1f1c00abf8cebbb8faa91db678c2c7febda611a728a51004e589b025",
+              "nullifier": "9d28072e9564576a531fc663e98168547224109fb79c88cc418cc74dcb96913a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "height": 3428146,
+      "hash": "5242d15e106b71c14eb972be496041f4e77c7d07a85bf6e484163b0000000000",
+      "prev_hash": "dfa6f2e9ec6e6a5d0291a4bfc92d4fa988987b8929f84de9242d350000000000",
+      "time": 1785247801,
+      "count": 8,
+      "transactions": [
+        {
+          "index": 1,
+          "txid": "862b391e6bfac14368743efb9e8798d6767d67478d9169c85ab72f42ed9cf43f",
+          "actions": [
+            {
+              "cmx": "2eb172217b70757ed74d0f70a061dfe35d52c0cdf788cfa338d87aaaa0ed1824",
+              "nullifier": "6fe17d09ba00497464f382d3da9cb506c67eba5a7907b58d02e4c01a62ee7c33"
+            },
+            {
+              "cmx": "9ebd6ebfb72826c73256301e12a01b8c684c52379b558d3beeaba6e33e4c9c3f",
+              "nullifier": "1cef07701e62d8c461371a39a2a5e5694d631eedef77f8cc42bef32aec62e01d"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "txid": "43c4d7092dfa43d89cd1186077557d4758e00e4cd767b6c6c02424cc2605efbe",
+          "actions": [
+            {
+              "cmx": "ce1552a270ed89181de99f640a4e8dc46deb7dddda33145adb7814e680634827",
+              "nullifier": "5200ecad1fa6ac7b3fba7a77756adbe261c76d9b191e722a5434fc01c4edd139"
+            },
+            {
+              "cmx": "4afbac5722d28fcfa02f4217ac42e6f029f8423fbfe13b2d88a6ff7ce71a1738",
+              "nullifier": "ebafaa7f990ead57fb685fb62bae9d006b3ff7cdff2f9fd60d4476dac7dc0e2c"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "height": 3428147,
+      "hash": "cd3ced6ef5274149141203d541d1bb53e84ca186320c28b5dde8060000000000",
+      "prev_hash": "5242d15e106b71c14eb972be496041f4e77c7d07a85bf6e484163b0000000000",
+      "time": 1785247846,
+      "count": 11,
+      "transactions": [
+        {
+          "index": 2,
+          "txid": "02fe23dc5076e70793dde263b057051ff48d79366a7dacb00b6dee6909888d13",
+          "actions": [
+            {
+              "cmx": "d9ca448ba781d05013a0670a92a18bff5382921b30172b04963c48cc0eb11a17",
+              "nullifier": "f14a811c47133eea6350df63c1ea3676a7fd8c6af80bed1419608c78d2c8ee09"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "txid": "1e0b93b1adf4c93de3939c30ab52a042e980a14277462d50d758b5c114fe254f",
+          "actions": [
+            {
+              "cmx": "d7812b4be0f91b19a1f7b5987537ae5fb6d4a0fdbe80116c8dee167228bcc92e",
+              "nullifier": "e199d26d5e1fbc00e407c652eaeab0968b2adb7b7201bf1b0c0bdb15f3e7dd25"
+            },
+            {
+              "cmx": "f58930824f10184c7c7aa4d50fb1e6d06b77b750bab2bec403d3fefe660a5608",
+              "nullifier": "db23c0bc3c0336b1d5e96f899f96361a07bc546818b052290d48a6ad14929c23"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "height": 3428148,
+      "hash": "9acf29f5a586f9b6e65e3c42827ea9f3aa25f5d7600801935d94070000000000",
+      "prev_hash": "cd3ced6ef5274149141203d541d1bb53e84ca186320c28b5dde8060000000000",
+      "time": 1785247870,
+      "count": 25,
+      "transactions": [
+        {
+          "index": 1,
+          "txid": "f7c9976666f94a11198180f695d50b6bf40d21266b00a30cb22b180d584ccc8d",
+          "actions": [
+            {
+              "cmx": "95fe9ac72ee824800421712b6b29066d92819378c16673259ed3f776234a4125",
+              "nullifier": "79fbebd0413317cc242bdca380d43e4d7419fa1f8cecc6eb53c1d33b100bec00"
+            },
+            {
+              "cmx": "eea337b0b7cd6513904e485eb855491e2d23881c08fd3beb794534525223f71a",
+              "nullifier": "e6343dc791bab5887f2a2476a6090176e030a80e6be302a20e74aeef9fd22017"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "txid": "895cef4323fc491420a91318f4e1730b5ed3e8ffbb748155319d1e3a315a387d",
+          "actions": [
+            {
+              "cmx": "0bb2b5c0f84db6c4c36f2c9124c2a2f25cf7087adf6bc5efe56d088a5f72ad04",
+              "nullifier": "68d4f4d1ce5bc93906adc0b1deb6e8c1c6d04899f39cd39610db83373deeae30"
+            },
+            {
+              "cmx": "018583bef60a5094f9ef93831776979c8618a545007be1e57d444ee3b5427137",
+              "nullifier": "fa7f94774c55c12373466492028479365960b50d536961241d295c4664c52707"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "txid": "1a2816606025f56188fd69efb1302a2eddaca2547589041706fc679fff44e6b4",
+          "actions": [
+            {
+              "cmx": "65b8cd3bc7871ad49be2261c872c3578372612e05700ecd75d1b843a617c5923",
+              "nullifier": "347e00675628e8a6206e92646221d6f5e4054adb2eea3a0684a51253bc11af37"
+            },
+            {
+              "cmx": "19ed37398a3a5498a99709111ff9ffe4a41143bf441f1fb1f59b384cada7aa27",
+              "nullifier": "8401aee222a27a7a4adf9974dfe887aab3d228a4438690531dad0582a014081e"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "txid": "8341469912c1634db6572260f677175c3242984eb10c1da3f77786082ad4be41",
+          "actions": [
+            {
+              "cmx": "e20e53f755c2613d33e9bda388b168ca4526381f49335a917fb4f48450db6500",
+              "nullifier": "aefe26d044e1f8749b51cf65f72277f23cf16ea74fcd70f699b6ce3c77b23c0b"
+            },
+            {
+              "cmx": "3984c88e38f192fb6c566f026f6a826040def6fea6956e503cc53ea2af168404",
+              "nullifier": "cbd02f84a974c6eab6af6f5373767edaf1f46d003847492e389096d34940b00d"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "txid": "cb70cbea8e03a1dfedf8ef1caee0a8439b3c6e1f62dc700e9edea66903238a05",
+          "actions": [
+            {
+              "cmx": "f5a3023972d634eca0e2f0f1620798f0a4ad2dae494e4c7bf0be99f04943ac3a",
+              "nullifier": "17c045340126a151832806ab62a31ce4415db5443848481330742b328b59510f"
+            },
+            {
+              "cmx": "4f640341fa5cbbba32eb4691b44e06f1eb30e06c1cc4964519746ceace754c2b",
+              "nullifier": "af96ce0712ed8fd9a6f04a455698a7609220757621ad2b6990f27ea757b6071a"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "txid": "408ef87a415f0dbd78fda95f8afa86590718c370056e0893169ed5a638d55428",
+          "actions": [
+            {
+              "cmx": "3ad0c117d4297ce4a1098fd078c4bc052ae8edb0a618d11aa4ab5445f242303b",
+              "nullifier": "7091671acda66c76cba465e28a3201b791f2014d65fd04a73aaaa22bef9e322e"
+            },
+            {
+              "cmx": "7f549bde2a933a037cdf03e0701bb1744e66b92f264757a15276c7852b7b730b",
+              "nullifier": "5f38a64d4f90a82ab04ee67edbfb998901d6801c468fbe91a576ce058e736f37"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "txid": "419b7750299dabc2b3a246e44fc16a1c2996ac4d0dbfa72b3dbd7a732dc55ea0",
+          "actions": [
+            {
+              "cmx": "64ba54bb8db297861bddfdca3ffcd14693bb9d6d0b97665ebf7574e6b4c28d2e",
+              "nullifier": "977377d1c00808dddc100d9385abc8bcb27fa6d1e069cfdbf2574c79a76fe126"
+            },
+            {
+              "cmx": "11eb9941d2a5a2bd47f424e22aab7ac41054487ce666751315924f17b9b5cc1d",
+              "nullifier": "e2175bf8d8c7171693cd4321638e0254333ffebd2d9769fc29e142eb6e25ae13"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "height": 3428149,
+      "hash": "634ea5824370a536b4d8fd9c78bc1c57e8659560223282e2d0255c0000000000",
+      "prev_hash": "9acf29f5a586f9b6e65e3c42827ea9f3aa25f5d7600801935d94070000000000",
+      "time": 1785247902,
+      "count": 31,
+      "transactions": [
+        {
+          "index": 2,
+          "txid": "381464f80529ea1f2fb5f062c079858ab63b383f361413c2d84e54ffa933c67a",
+          "actions": [
+            {
+              "cmx": "0a0bdb77836dedcd1674fcec6ed32f7f5d8cb31b013724b1b719549427650f06",
+              "nullifier": "04ac8947f1a53b259aefaf5f9c1c959a968f2917eb165306ed92ada6235dbb1b"
+            },
+            {
+              "cmx": "d46d34cb9c89aa1a8c2e65bb5981d954ff0262b50a9e1b0aa634a2ffef74953e",
+              "nullifier": "e8dc14bd2419d018a18f76e755ebaa79c7d83090cd631b8103b2bbda47bb2221"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "txid": "bb4a39916702f0290889cd85cbaa3eae307700aa9a90f6b2351b812e3c515def",
+          "actions": [
+            {
+              "cmx": "6c50afd7a79acb1ee0dc735c306c26c462cb741012ba7f2341b814d592cf4424",
+              "nullifier": "df5e0fde5972cdb84b6a3a81bc860773b89959b03604b576f50f6ce9e1f59202"
+            },
+            {
+              "cmx": "905c81a69d9c84affb79e909efb3d1d6d725bbfd499cd817a3238d84bdb18b12",
+              "nullifier": "e4aa158cb88a718db426517bacf9fbae0aae21dbf79b89b66ac8d906ec07d13c"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "txid": "0128a14109a17f72d541acbccdd68069e4e234f50f526fabd21e03bdc504365a",
+          "actions": [
+            {
+              "cmx": "4c90c982cda17dd33120c0b3453ce4cf94c5b0482701224c1f19bc7f194ce93a",
+              "nullifier": "ae7fdc7567e88d74bb3057a7d0c70ee8f00ef33baf27fc84ab039cf6698d7f30"
+            },
+            {
+              "cmx": "08ddfe7da0aaf55cf4e32f435131379ca12c7e92d46a8badc20065a460233a01",
+              "nullifier": "e1ff15ad74e2aaddc4ef756f3877102d32a94ce0a4e637dd24d705df672e262b"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "height": 3428150,
+      "hash": "53b5a325c92293f2904a215b8f314e79cc68962c78a4622e8d824c0000000000",
+      "prev_hash": "634ea5824370a536b4d8fd9c78bc1c57e8659560223282e2d0255c0000000000",
+      "time": 1785247959,
+      "count": 43,
+      "transactions": [
+        {
+          "index": 1,
+          "txid": "cd406f696134f55ce00a1b0c0b8e33744c97e9cb1fd48af2597b26f85cf58480",
+          "actions": [
+            {
+              "cmx": "dc4798dfcf633cc67d6d4704abde2ba98d0e04a0911fbc3cbb12c79928f39f21",
+              "nullifier": "dd72a337a1cb552e7b27ed8fc4429178bb50c2fcd6360c5d6e7d5c2d6973bd27"
+            },
+            {
+              "cmx": "a5f48c99b872e6774ba13fab98b25af7f83a23188b826098c6d8731cdabdfb20",
+              "nullifier": "82b7baed6422ba8031030ea4cb25f02f1e0acb46b8fdf64d7a190dce6e964d01"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "txid": "5e913bf3ef0f7971ea05d9a9cb2074693e5858bfe8effde4648b21f42be050de",
+          "actions": [
+            {
+              "cmx": "0e81965ae1cae7931bce9139f5f15e021cbf5df3a2fca570d2d12f2b2f881027",
+              "nullifier": "ef10314ab0e263bf35433da653ca4cd89812ec14f88ab08279e24ffa2660aa3d"
+            },
+            {
+              "cmx": "706eed8112e0393c8f13c7922244bca1f7b75c55b55295363d004e9276239214",
+              "nullifier": "044836132e7436d5edbd50095c07fb542dcb6adb01ffda127a727d8948d5bc26"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "txid": "07c76f5e1e6f097dc6902ca926f6d05855330b0df2ae402da8bd5606858dd107",
+          "actions": [
+            {
+              "cmx": "6c1234e0b0231817318cb2d44678fb007b451e50a4e193fc57c794cdc60c0f22",
+              "nullifier": "bd93fa0aabd0a2a449b696075547d5eeba11e7aea3c33bfbc63f09b742b1543f"
+            },
+            {
+              "cmx": "d39b8e20e4205f4e57ff7322c48f6eeb10234fa71197855bf152d76e994b712a",
+              "nullifier": "94908c94ed794b1cc3fd9be286dac42d2ff46d0885b629c5c779f88d7e3a4134"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "txid": "b46455e1f9202908debd4aafa00eb2ff2666af0b6c9ca8c5b796354d8f97dd6e",
+          "actions": [
+            {
+              "cmx": "1dac05dd74c72dc5e43387eed2e1517085b4d81339f290f19dade2c693ae7625",
+              "nullifier": "b2f575f93f9cb223edb695214d4020db0472d1adf49f0cdfb953fee418bc9f3c"
+            },
+            {
+              "cmx": "c2cf6caf8bd9adcf147da93092c0d7c1a8b9c8ca56d12259c8fb845d2a4c7620",
+              "nullifier": "3baf358826e167a09be1a31f1ac0828986549f074a679d06a96f4165eda5c81e"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "txid": "1e8afeb09428ea033cf92c3f52e3d288a3edf4ebcfb3b5884b8c3078a67bd825",
+          "actions": [
+            {
+              "cmx": "b3864f261a1832ec29392686ff1e0407a53f1e710c6fae605695022635c96f3c",
+              "nullifier": "98fd393ee95a2605fa2b0d5b18ccb911545797202cebca6e2cdf35da7fb1ae1f"
+            },
+            {
+              "cmx": "faa2b30f42402f4f6da5945bd6458cadfeed54887f0065281263c3547db56d1e",
+              "nullifier": "fea216fcf0fc4024e935ef1cf0bcec46089762ab514f3cb4cf31524899784b2a"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "txid": "beacaf5041bdbb6c52c53a554d9af1029540ee7c9e749bfc208741773515f05b",
+          "actions": [
+            {
+              "cmx": "29d93f149f7eef8df695ad181c8e4857abf801563a0adc99933fe4834ae1f01e",
+              "nullifier": "466c8f1bba514a49933d7088e46eab5eebd39ba91f4e6b84ace84932b266af36"
+            },
+            {
+              "cmx": "b57437c4a5e52e23faf18e150bc102e7edb592878b0ea0539510f5bf2629dc38",
+              "nullifier": "99fe2f36610a2d9ff2fc89af4f69cd05a44583a75a75ff574c638bae613e222e"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "height": 3428151,
+      "hash": "1a99399877eaaa95e9f779b0edd284d2e9a0c5a2961cd7450dcb950000000000",
+      "prev_hash": "53b5a325c92293f2904a215b8f314e79cc68962c78a4622e8d824c0000000000",
+      "time": 1785248065,
+      "count": 73,
+      "transactions": [
+        {
+          "index": 1,
+          "txid": "12734cbe5ce49294d091b93e9062b628183cd9a5a371263485199266721348ff",
+          "actions": [
+            {
+              "cmx": "de1df57a1ea8c14924e171046fee65920fad2efecf1a0a031dc8ec0e3ce5db35",
+              "nullifier": "c22a0534123d3314345fd6b4dde967597a3e349f424d187a3aca7c192e791c02"
+            },
+            {
+              "cmx": "4ea0927153ac2ec6e1f0261f77c4b31cf0e19f81d4b9da652376a05c1c624520",
+              "nullifier": "a87e978e24d60699b6f0e81a9fdb165069518b4429bf7c66eb782e595af97231"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "txid": "cd6d9b82d06229cb3bb269d41c2c4a95c4ddf5b3f4a60c4d0653a7d14a9c372d",
+          "actions": [
+            {
+              "cmx": "38848637836e6e05f04f7d34720ae883c06fd6cad940eb89b34917ce0d9f7e36",
+              "nullifier": "846168a5e3904b4c588cb821a89375ba5b49ee6ed203824639a1c7af2535ac1d"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "txid": "f0e45561422d7375c1cae4e2326befc0d8b87b8abdbe34820b62cda67a55d148",
+          "actions": [
+            {
+              "cmx": "d205685fcce1bd5b3608128b8b22e6d5d717cee48862daaa96786d4d3f1f2f0b",
+              "nullifier": "e45a957d0633dda433521a4b122d3499f16fdf8291421d317ab3e89085057b1c"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "txid": "f3b1d0f93e1794e2d4cbcc0f91fb86137b9cd4962b150917d0b11dbee423c758",
+          "actions": [
+            {
+              "cmx": "a3d5cae2422e4a36af3b756c8d4e62f6cd08870b95250c2218579b70a09ecf0b",
+              "nullifier": "6a5a57f270a514d9d1cbcf569ee29a1f0dd64daf32d623b85d0611f1c59a1233"
+            },
+            {
+              "cmx": "2d4f1079075adec40bc4fce4d565412a5049f14e59097f3c85d1ce78850fd72a",
+              "nullifier": "d6c1316cf6237b40df6a06c754f2f0e4ec9b246699cf5aa865858b40d3c5613c"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "txid": "c4b6f5a236ea8f72b6b806dba8e7eaa03ed0caa02670478786e00b3740cdb9cd",
+          "actions": [
+            {
+              "cmx": "b1dfe35481077ba95d91087b91b8ff6153243e378f0d54d2a1246878be201e2e",
+              "nullifier": "583b78ea6698743863762e463bd93192558b2564d6b8b7112c1ea1e765a5a514"
+            },
+            {
+              "cmx": "99a229bc431e045b8f475b2d0c773155eb5e764752452f96aaaec7c8fbfd2114",
+              "nullifier": "2d9e74496582296c1c8b5a6d5a6f17cdb9c78bcd767b19472cd325893ff3852b"
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "txid": "d736a4dad0ba93b6193eb7b785dfb0084c50fbbab24a5dab43b8da8d5c7799c4",
+          "actions": [
+            {
+              "cmx": "16fd154334bc47c04d90ff2862ea36cee5507ddea8e47eaa0377483e30d84437",
+              "nullifier": "043af7836e4510aaa4a85f65ef93b8ccb88dbb432ef1d5f02eaeb4ca21b2e808"
+            },
+            {
+              "cmx": "2c3ce91dfb057c1d89cbc7b4743a26c3fb1398d41b9df5d85945e7234b608237",
+              "nullifier": "b5659c7aebf5e2917980f9b5b23b22b1f0c3e73d9aa9133be53de53c01e5101f"
+            }
+          ]
+        },
+        {
+          "index": 9,
+          "txid": "53827181c6483b3570929187b827b423283ec03e542d633dad042db06ec3842c",
+          "actions": [
+            {
+              "cmx": "c42caf3f10a73243bb036d70884c5f1b7daf68f758018cee24d65dab2ce4b70a",
+              "nullifier": "1fdeb0b67482c23d3d8b395713b1ff38b8e775b9ee5b0797cd096384dd41e62d"
+            },
+            {
+              "cmx": "3c4cbb946a638fb038cc28e92aa0800ef0e897a6a2555b6b57775eab68df8521",
+              "nullifier": "7b9ffbf8597801ce3f5a8b4711fc2ba7850e5a9951a99cc5fb8ac634cf06c506"
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "txid": "4824557723e15b557868f28e9d75bf7006ceb25be3729df88bb3dadc05771352",
+          "actions": [
+            {
+              "cmx": "2c3b83a33780ff0a67ed01cce8f0790d17ba3d45163ef902d9e954a7e0d4950b",
+              "nullifier": "dd196be49c4c47cc33279d58cc5eb732b780bc5a8b5941a878517a3c4240591d"
+            },
+            {
+              "cmx": "fd685697f5d1d37de466d8a4f207de8cae4dd2ffb09acbc0c66822a667d05e26",
+              "nullifier": "ffa52ba35468e6bdc56ea6ecf208dda599f99cf197ef28e647df187437e1e914"
+            }
+          ]
+        },
+        {
+          "index": 11,
+          "txid": "040253dc49ec46c099265bf9c374a56607430fab887d2a9ed5a603dc452a5b38",
+          "actions": [
+            {
+              "cmx": "8899ce435aa6a18e2fcafa3bf629730255cb3b95f0dc25abc89866b77da72a20",
+              "nullifier": "ecb2d18a6b67f75d7273974c7c4dc1c7438f52718847b5b0f416f1f1096b541b"
+            },
+            {
+              "cmx": "30d6648d152c1854da4182bf70862f78cefe3d70512349be5a8a6250332aa314",
+              "nullifier": "f8522516f5f940d47bc16e3688989937f4e36dfe6ebd4591b978eb1deef14c36"
+            }
+          ]
+        },
+        {
+          "index": 12,
+          "txid": "5a1865d665a4a05fcdeb6e9c2514c3f0a5719936735f0889af702681cac28193",
+          "actions": [
+            {
+              "cmx": "ce83352245ebb76b053c428a7f1f55eb1790fea692d977ac1e5b96182002c22d",
+              "nullifier": "ac72982cdc7ea10e887b5c780689e9a058888ec5addabb716979d57747089a10"
+            },
+            {
+              "cmx": "260b3caa8c57705f22a1a28faf81905f38290e31caa53390eded7b11c7cffb25",
+              "nullifier": "c3e414fa891dd526b01ebac8f8acd75b5ac2e133e830d8c59c615b632142e101"
+            }
+          ]
+        },
+        {
+          "index": 13,
+          "txid": "b7286fe879d2db196d7588e9f88e7aaa18d29504d364d434b40a95f1afba1094",
+          "actions": [
+            {
+              "cmx": "ee1e053d815ad9f8993bd057f8b7161a17e09e72f2c3f5d94cb6307e9ea30303",
+              "nullifier": "6cb9f8a2c1e8c69c67393be11387d3470b68e1eb52d7e4f7b0a8fc6b16edee21"
+            },
+            {
+              "cmx": "3681666c2eb5988361b3dca3fa7ec07d92623b2af46d6d327111ac096fdc6f07",
+              "nullifier": "7d79c4160a51b53edbbc5d5e1f48aca7d6dbba7d7cabf4b654db44d862566336"
+            }
+          ]
+        },
+        {
+          "index": 14,
+          "txid": "8ed0e8251e5e72f2674ca048a2677a72d96df03396768589cb2ac3637c1d3fbd",
+          "actions": [
+            {
+              "cmx": "8b67c6077551ea23540ec0d5416e066dc147b7484d7f2fe11cd9830a0a82c600",
+              "nullifier": "5b6e69b976174e5436d01b877555ce4949be7e826e844d718dcf6cb1a01a1c11"
+            },
+            {
+              "cmx": "d4168f0fea7aeaa916f9a5cbef8ba0844ac28984a191b97d53c4b31e4d919c38",
+              "nullifier": "89e89f5e30cd475e39ae2ffc82eb25d1ce64e65c43a25a0f81fbb4a0e221dc22"
+            }
+          ]
+        },
+        {
+          "index": 15,
+          "txid": "675908c48e45b51719646eb6fb4f9d1a8cde8a4c5243b3c4ff6b810fde130be1",
+          "actions": [
+            {
+              "cmx": "69fc9e0c97aa2c4beb2383af835b21dae42735424d008c3a3f0a1e6bf4df2d0f",
+              "nullifier": "1952b5250a9c1d6db11cb7bc02c88bd85f5ba841837ce695f11054fb490a0211"
+            },
+            {
+              "cmx": "c14c0dbbad587c0cdd8b6284f5dd4ef8fb3785f9c774abeda021f038e9854828",
+              "nullifier": "c5ad43fa18fd9d3d7fef5a38a5b202f10dd14bcf44ed886fe06e2a7246b6553f"
+            }
+          ]
+        },
+        {
+          "index": 16,
+          "txid": "4f2ae66a75711b73b503693f5104c1063d78318873ef64f9785e4125a1b7d06b",
+          "actions": [
+            {
+              "cmx": "25506f0e832875d771aa493e9e2087d8c2dda1e1703ae2596bb69a86fdb6ef38",
+              "nullifier": "0c554d94bda233999090089e147856f2e796e0e8298fa908f8c10ecfe13d7c2b"
+            },
+            {
+              "cmx": "de5530a57dd43492894cab67b9f2a2c4b8cd67ae3e3e307d673c3073e4544a06",
+              "nullifier": "ea49b8564306fcd27ea479c41da14bcfb6c450441edc8413693c08c5ed9d862f"
+            }
+          ]
+        },
+        {
+          "index": 17,
+          "txid": "b34b3b349b27cddac429db1440919daf6029ceae659ba2084907d672bce7ce7f",
+          "actions": [
+            {
+              "cmx": "a5d3a46a8b740e9ccf721490934b45eb17113765fbfd63b5c123852d5d078c25",
+              "nullifier": "827fff6a3ad3668a927eaa43267f56f458a33c5521b315f12fc712d712c72715"
+            },
+            {
+              "cmx": "2e7bfe7de5081c308555bcb2b66cf3c22d8fc7d69c97cdf2352557d22b402f2b",
+              "nullifier": "7304bc498c6a75560539e0846e72840a1985f801cfc4457dda26c344ab74792e"
+            }
+          ]
+        },
+        {
+          "index": 18,
+          "txid": "4dbf5995ff20ccda39ab869e80a85d7cca814f76b824b96ec5ee420e795a83db",
+          "actions": [
+            {
+              "cmx": "b418707b37d9fce10764eda33e6d51436a15180ae8a7c5af770d694eb1117c20",
+              "nullifier": "480e4b91a163f853e91ba7ec49ffe3bd49fec98a64ba22f9bb6f729956485a3f"
+            },
+            {
+              "cmx": "66d0cfc3b0e94e2abe01978086dd04effec72d26c4cdb5865c5c69b9e083b607",
+              "nullifier": "b0150d917f46605d6ce4b75c7c3dba64b6942ba2018277179a2778f039fa6c16"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "height": 3428152,
+      "hash": "59824511517c9a270a866def2ecbad328d6e612a705af4c34bf8a20000000000",
+      "prev_hash": "1a99399877eaaa95e9f779b0edd284d2e9a0c5a2961cd7450dcb950000000000",
+      "time": 1785248126,
+      "count": 97,
+      "transactions": [
+        {
+          "index": 1,
+          "txid": "e8545c900d7bbc37d878a912101f52d1b81f5b545685dca755d945ab1632dc90",
+          "actions": [
+            {
+              "cmx": "627ddfec8c92d8c4fea79556748b52168edf66fbc344b3fc2cb3b3479da1390e",
+              "nullifier": "1b70a5dd30f000c9586d1ffacbb7d3147a3bd832cb61b94020723f7593d4ea27"
+            },
+            {
+              "cmx": "dbd6aebf599ae631708b0beda9668af5b0952a3c65aa32838f82af3a007fe428",
+              "nullifier": "e1b7e25bd790f9fedeca5044952a545f5ed231941a4133ddd3d6f97d1b4c963d"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "txid": "8d5c0ecca95d6ab25e994ab9a34ee1ff4a577dc6e15d91c16c464a5f0d80b147",
+          "actions": [
+            {
+              "cmx": "8d3ad61b1004260c9f0729a79759eb7b45747a136d56ed982d4252b3db0c652e",
+              "nullifier": "0c2e49158ee0a0e64fd64ca0ddb878c15b0f2ff7af4f2b8a02bb770c96d40d05"
+            },
+            {
+              "cmx": "8bb30848ea7190939d70d3136f674445ba1c6f7220ffd6578198f40263300a1e",
+              "nullifier": "afaf521365f64e9b9e50864b4e823d92abaa732117fc5a1e46194b58875b102c"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "txid": "4801a605896f8bd22cf8297b18a124e169cff76c9db6960817d2c056320f9f58",
+          "actions": [
+            {
+              "cmx": "9e74e819130eece613dc9072007efed2595817ce678ed88f36115f924d0cca39",
+              "nullifier": "96d5b01ae5168fb7bec7397b76747445cee7305a7d8a9e9f7c538ebe664fda14"
+            },
+            {
+              "cmx": "d8b9e14e18830b4d5c21687a072df020980af77bccc883c0dd6cd70439ecdd21",
+              "nullifier": "51df7c382bfa0c3a4d814759903cde2f4dd9f261d93ee053c4c9dd947e71aa0a"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "txid": "c1ec9579bae182226bd2ed027dc1103d5e42fe904030441cea53eabb803660a7",
+          "actions": [
+            {
+              "cmx": "6e619dca592e68a906ab3ff2386ebb5b333ca53b2b836be0d695f17e51f32c0d",
+              "nullifier": "88e263162b76aed492d66f6c07ffaa7404c578746d9bbc81456c4ff85407a40f"
+            },
+            {
+              "cmx": "60616a7e4541fa3576684e143f07c6b3712ebfee332d8e37b288a9196157d816",
+              "nullifier": "cd30e5b9c4f16e36ca66b9e546c7922b203412ccbb6e7059d203fdedc2d0de06"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "txid": "9e6ab070d149c297fb6b095152d01b67c525c88f1903386e218f20e148687528",
+          "actions": [
+            {
+              "cmx": "8aa912664d42d3858228d863eaf0806a4c4c5497538843d858969fabacb34d33",
+              "nullifier": "912291a9f0cb9b139d6c46df664196f9d7cd3b9d821d7b7c986b9d16d747bd22"
+            },
+            {
+              "cmx": "3c0ee958ef9de3e8b0857affd3969d83d3f6dabba34907ec241936c526372607",
+              "nullifier": "deb99d10779028f4b3314c387733a080686526da379700c3ecd9155095e4c738"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "txid": "7192c778b541b0f5b50ce3e5ae7f564dec3cc7cd8d19246b05a6c161c35ffa6c",
+          "actions": [
+            {
+              "cmx": "cb1b67a3ee99220931128bb70a591ef850e35a74447206afc4711df276448521",
+              "nullifier": "9849c00eef67980f45cdd9c40c7efc47c1291a6aeb2c0d31da14976084a2a402"
+            },
+            {
+              "cmx": "342c9016aed0b05f8579a4d5d94166b34397c54afdab069deefab25141fc7328",
+              "nullifier": "1192d4413d7fe1f3456433fefa141f4da67d7079d1d1340aecb7c7bd2254470d"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "txid": "355fcf20e860dcd663c91a65c3a9868d1a4fab48a0d6aaaa9f8f893917e1de0a",
+          "actions": [
+            {
+              "cmx": "387f60ad72093ad70eb2e34fdead3bb87a4bc884bef1cda57fbdbfef18686d36",
+              "nullifier": "2e8b91af42dab0cb6b472738ad093218b0de69d750e04b880c05533f33486d18"
+            },
+            {
+              "cmx": "04d84934d3854c9745cd0f67211b184e83b7c0e55afd35e938c4f0ef3f8b243c",
+              "nullifier": "f74b5bca57bbb3aedce60717b6aa04fd2f0da467e7ce072effa076e0a814ec39"
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "txid": "694fdbef5e1b93134f7553586e78cf657a84ec8cb8474941dcdd08e6745582da",
+          "actions": [
+            {
+              "cmx": "fd2066341330a8dd5ba8a8bc2bb8a2a278a8f05f626f2e7d8d0794343e723c3c",
+              "nullifier": "299fb1e51ffe793747f673fc169d159c13bdc8132f79a02550421864f3c83533"
+            },
+            {
+              "cmx": "1880928e6f70e704af40b38fdb78c49993c0648821c8493f1eb00ac747414f31",
+              "nullifier": "61f49a30fced04b4ecb009af71cd04bd6d1a5c07a4d088fcc5d98fe8f32c1126"
+            }
+          ]
+        },
+        {
+          "index": 9,
+          "txid": "fc3059857b3a8f8a163c92b23598823e4f1aa45c42a73a447c47c24861dc43ed",
+          "actions": [
+            {
+              "cmx": "0940f91b25166ca83ab017340164932f03f14743c850200e138ecbbaa022271b",
+              "nullifier": "c6da95b4719ce8ba8b05794fa0bd15d6e4d38ddb3d8e0832437523034a36e519"
+            },
+            {
+              "cmx": "a174517457fa034cf14a37607aa6d55077bc4fa5765595b2249ab5e6be5b802d",
+              "nullifier": "6b9ff028d4c737f6874cae7a5297b1bc9019a47e7370b1b638da98a36ba60536"
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "txid": "6529dbe36d4bc8746af3a9abb554139774a7428850e6f84686755f7426fc9887",
+          "actions": [
+            {
+              "cmx": "c9da97660ede19cb753a35894cd21afb6770d48bb57ccf3cd80c6e171e540609",
+              "nullifier": "c7698feb076944289206ffd278dde4c621bfb25fbc9a03ca24cd2b92add40512"
+            },
+            {
+              "cmx": "9d9aaabadfd28582219ed1d173c0804d25851e1e069fcb22118d60b6f3e46027",
+              "nullifier": "77bc95efcc16fdf78faa6bcba6385e2020d6cc5839500c767bf4b0647cc2c631"
+            }
+          ]
+        },
+        {
+          "index": 11,
+          "txid": "3d136bb4be3e00e6e799dc5a3c083b313c4f99bf43267ff241a223f8d24767f7",
+          "actions": [
+            {
+              "cmx": "fc81f636cd2273ca890e8ef8f4b16fbc0216be7b87dd2f11e63c94c7427b3f24",
+              "nullifier": "48b6110b8afb83a26492bcb3fe13a4e970117a980a383ddefb574f4378d7be1f"
+            },
+            {
+              "cmx": "06c9208c0aca8bfd2c65365876c25b5b63790fa5aa4a83ca0750c0c11d9ee32d",
+              "nullifier": "964ce43309bfe44a59135fa55cb2fab3b65dbed7a1f355d3b83db997697c5f3e"
+            }
+          ]
+        },
+        {
+          "index": 12,
+          "txid": "7acf298a975ca6133c796f1957428d4e8cbebe16ff53aa934f35b78c410ff527",
+          "actions": [
+            {
+              "cmx": "c3ae90fcf36c28a26f7bfa90df43b3d0a45eb1586f39e41f86ddfb091837a909",
+              "nullifier": "45f48cf3f886e24d9b84c959fcc6b0c3fa8640d4f626d796a3a6b5eaf906ee12"
+            },
+            {
+              "cmx": "7fd1ecccad974544ae0e7f6582462b5d78937eb4c5bb18e7797328a16d563b2c",
+              "nullifier": "976f9bd577e9c071736a9284f3889b1c28e2702283d2111c98728ce4e311f42c"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "end": {
+    "hash": "0000000000a2f84bc3f45a702a616e8d32adcb2eef6d860a279a7c5111458259",
+    "ironwoodTree": "017fd1ecccad974544ae0e7f6582462b5d78937eb4c5bb18e7797328a16d563b2c001f0000000001a9a4ab6dae404942c4cf137552ef4b251b9b263c181c415258ae57b00c51ea2d013d71bf6ecc33810ab2eba283c4e177e5fe5ac6779637c76c8fb26195b478e02500000000000000000000000000000000000000000000000000"
+  },
+  "root": "91e0a0a10c8ee98d2a3e1a0101ecf85b1b73f5b617f96c68bac124669b52962a"
+}
