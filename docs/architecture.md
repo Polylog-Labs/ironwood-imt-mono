@@ -23,6 +23,8 @@ This is an indexer trusting a validating node, **not an independent consensus va
 
 ## HTTP API
 
+The Rust server limits API requests to **20 per second per connection IP**, with a **240-request burst**. Excess requests receive **429**, a JSON error, and `Retry-After` in seconds. UI assets are exempt. Buckets live in memory, expire after 60 idle seconds, and are capped at 4,096 clients; a full table temporarily rejects new clients. Forwarding headers are deliberately ignored, so visitors behind the same reverse proxy share its bucket. This leaves room for frequent refreshes and 25 concurrent viewers polling every 10 seconds while bounding sustained request rates. Limits reset when the process restarts.
+
 All routes are GET-only. `/v1/status` also includes the provider status. Provider labels expose URL origins only, excluding JSON-RPC paths and query strings that might contain API keys. Provider `last_success` records the last completed operation (initialization, catch-up pass, or mempool sample); it does not track individual downloaded batches. Hash values are 64-character hex strings. Block/transaction IDs retain RPC display order. Commitments, nullifiers, and tree hashes use canonical little-endian field bytes; Zebra's `finalRoot` display encoding is reversed before comparison.
 
 | Route | Result |
@@ -49,6 +51,8 @@ For a consistent export, take `snapshot.checkpoint.hash` from the first page and
 For animation, poll status, then fetch new `/v1/blocks` rows and their position ranges from `/v1/leaves`. On a `generation` change, discard cached branch-dependent state and reload. Canonical historical roots/nodes remain queryable; orphan history and old mempool samples are not archived.
 
 ## Tree explorer
+
+The sync bar measures indexed blocks from Ironwood activation to the latest reported upstream tip. Unknown tips show an indeterminate bar; unavailable APIs retain the last reported progress without inventing a percentage. Dashboard polling pauses in hidden tabs and resumes when visible. Rate-limited dashboard requests respect `Retry-After` before retrying.
 
 Drag or scroll horizontally to pan, scroll vertically or pinch to zoom, and click a node to inspect it. Shift-scroll also pans horizontally. Double-click a branch to descend. The controls jump to the whole tree, occupied region, latest leaf, or any index including an empty position. Keyboard controls: `+`/`-` zoom, arrow keys pan, `Home` shows the whole tree. Recent leaves and index search also expose individual commitments without pointer navigation.
 

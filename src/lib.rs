@@ -10,4 +10,5 @@ pub mod store;
 pub mod sync;
 pub mod tree;
 
+mod rate_limit;
 mod ui;

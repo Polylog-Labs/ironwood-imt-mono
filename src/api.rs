@@ -10,6 +10,7 @@ use axum::{
     Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
+    middleware,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -45,7 +46,6 @@ impl IntoResponse for ApiError {
 }
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .merge(crate::ui::routes())
         .route("/v1/dashboard", get(dashboard))
         .route("/healthz", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/readyz", get(ready))
@@ -57,6 +57,11 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/blocks", get(blocks))
         .route("/v1/tree/nodes/{level}/{index}", get(node))
         .route("/v1/mempool", get(mempool))
+        .route_layer(middleware::from_fn_with_state(
+            crate::rate_limit::RateLimiter::default(),
+            crate::rate_limit::check,
+        ))
+        .merge(crate::ui::routes())
         .with_state(state)
 }
 fn fresh(time: Option<u64>, max_age: u64) -> bool {

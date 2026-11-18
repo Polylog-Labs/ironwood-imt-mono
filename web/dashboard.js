@@ -39,6 +39,7 @@ const time = (timestamp) => `${clock.format(new Date(timestamp * 1000))} UTC`;
 let payload = null;
 let timer;
 let inFlight = false;
+let retryNotBefore = 0;
 let selected = { depth: 0, index: 0 };
 let selectionRequest;
 let selectionVersion = 0;
@@ -388,7 +389,13 @@ async function inspect() {
 }
 
 async function read(url, signal) {
+  if (Date.now() < retryNotBefore) throw new Error("rate-limited");
   const response = await fetch(url, { signal, cache: "no-store" });
+  if (response.status === 429) {
+    const seconds = Number(response.headers.get("Retry-After"));
+    retryNotBefore = Date.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds : 10) * 1000;
+    throw new Error("rate-limited");
+  }
   if (response.status === 409) {
     refresh();
     throw new Error("snapshot-gone");
@@ -398,7 +405,12 @@ async function read(url, signal) {
 }
 
 async function refresh() {
-  if (inFlight || document.hidden) return;
+  if (inFlight || document.hidden) return false;
+  if (Date.now() < retryNotBefore) {
+    clearTimeout(timer);
+    timer = setTimeout(refresh, retryNotBefore - Date.now());
+    return false;
+  }
   clearTimeout(timer);
   inFlight = true;
   byId("refresh").disabled = true;
@@ -408,10 +420,11 @@ async function refresh() {
   try {
     render(await read("/v1/dashboard", controller.signal));
     return true;
-  } catch {
+  } catch (error) {
     renderSync(payload, true);
     document.body.dataset.connection = payload ? "stale" : "offline";
-    status(payload ? "Last known state" : "On standby", "offline");
+    const limited = error.message === "rate-limited";
+    status(limited ? "Retrying shortly" : payload ? "Last known state" : "On standby", "offline");
     if (payload) {
       text("root-label", "LAST VERIFIED ROOT");
       text(
@@ -426,10 +439,12 @@ async function refresh() {
       );
       byId("error").hidden = false;
     } else {
-      text("waiting-title", "Awaiting chain data");
+      text("waiting-title", limited ? "Reconnecting shortly" : "Awaiting chain data");
       text(
         "waiting-detail",
-        "Live data is temporarily unavailable. This view will reconnect automatically.",
+        limited
+          ? "Taking a short pause between requests. This view will retry automatically."
+          : "Live data is temporarily unavailable. This view will reconnect automatically.",
       );
       text("updated", "Waiting for connection");
       byId("error").hidden = true;
@@ -440,7 +455,7 @@ async function refresh() {
     inFlight = false;
     byId("refresh").disabled = false;
     byId("retry-connection").disabled = false;
-    if (!document.hidden) timer = setTimeout(refresh, 10_000);
+    if (!document.hidden) timer = setTimeout(refresh, Math.max(10_000, retryNotBefore - Date.now()));
   }
 }
 

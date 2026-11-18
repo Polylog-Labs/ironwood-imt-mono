@@ -81,12 +81,15 @@ async fn main() -> Result<()> {
     ));
     tracing::info!(bind = %config.bind, "read API listening");
     let signal_shutdown = shutdown.clone();
-    let server = axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            shutdown_signal().await;
-            let _ = signal_shutdown.send(true);
-        })
-        .await;
+    let server = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
+        shutdown_signal().await;
+        let _ = signal_shutdown.send(true);
+    })
+    .await;
     let _ = shutdown.send(true);
     chain_task.await?;
     mempool_task.await?;

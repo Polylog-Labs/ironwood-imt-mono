@@ -31,6 +31,8 @@ Browser requests stay on the UI's origin through Vercel's [external rewrites](ht
 
 While the API is unavailable, the explorer shows neutral metric placeholders and a standby panel with automatic and manual retry. Tree controls appear after the first verified snapshot arrives. If the API goes offline later, the last loaded tree and camera remain visible with a UTC snapshot timestamp and a **Last known state** label.
 
+The Rust API includes a 20-request/second limiter with a 240-request burst per connection IP. Behind a reverse proxy, clients share the proxy's bucket; forwarded IP headers are not trusted. Deploy the updated Rust binary to enable it. Publishing the UI to Vercel does not update the API process. See the [API reference](architecture.md#http-api) for details.
+
 Check the packaging locally, without deploying:
 
 ```sh
