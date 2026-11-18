@@ -640,6 +640,25 @@ progress::-moz-progress-bar {
   font-size: 8px;
   margin-top: 12px;
 }
+.transaction-link {
+  display: flex;
+  grid-column: 1/-1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 10px;
+  border: 1px solid #52706b;
+  border-radius: 3px;
+  background: #8cdef20b;
+  color: #a5e1ed;
+  font: 9px/1.6 var(--mono);
+}
+.transaction-link:hover {
+  color: #c5f2ff;
+  background: #8cdef21a;
+  border-color: #8cdef2;
+}
 .inspector-actions {
   display: flex;
   gap: 7px;

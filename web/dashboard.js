@@ -323,6 +323,8 @@ async function inspect() {
   byId("node-tx-row").hidden = true;
   byId("node-action-row").hidden = true;
   byId("node-tx").replaceChildren();
+  byId("node-transaction-link").hidden = true;
+  byId("node-transaction-link").removeAttribute("href");
   text("node-added", "Loading…");
   text("node-block", "Loading…");
   text("node-hash-label", isLeaf ? "LEAF COMMITMENT" : "NODE HASH");
@@ -382,6 +384,8 @@ async function inspect() {
           source.target = "_blank";
           source.rel = "noopener noreferrer";
           source.setAttribute("aria-label", `View transaction ${leaf.txid} on BlockGrey`);
+          byId("node-transaction-link").href = source.href;
+          byId("node-transaction-link").hidden = false;
         }
         byId("node-tx").append(source);
         byId("node-tx-row").hidden = false;
