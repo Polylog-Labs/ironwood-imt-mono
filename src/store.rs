@@ -46,6 +46,25 @@ pub struct Node {
     pub occupied: u64,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Growth24h {
+    pub window_start: u64,
+    pub window_end: u64,
+    pub baseline: Option<Checkpoint>,
+    pub added: Option<u64>,
+    /// Undefined when the historical baseline is missing or has zero leaves.
+    pub percent: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Dashboard {
+    pub snapshot: Snapshot,
+    pub capacity: u64,
+    pub used_percent: f64,
+    pub growth_24h: Growth24h,
+    pub latest_leaves: Vec<Leaf>,
+}
+
 fn checkpoint_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Checkpoint> {
     Ok(Checkpoint {
         height: row.get(0)?,
@@ -65,6 +84,7 @@ fn leaf_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Leaf> {
         action_index: row.get(4)?,
         cmx: row.get(5)?,
         nullifier: row.get(6)?,
+        time: row.get(7)?,
     })
 }
 
@@ -253,6 +273,56 @@ impl Store {
         self.read(|conn| snapshot(conn, None)).await
     }
 
+    /// One SQLite snapshot for the root, occupancy, rolling growth, and newest leaves.
+    /// Use block timestamps to select the last canonical height at/before the cutoff.
+    pub async fn dashboard(&self, now: u64, limit: u32) -> Result<Dashboard> {
+        ensure!((1..=100).contains(&limit), "invalid dashboard leaf limit");
+        self.read(move |conn| {
+            let snapshot = snapshot(conn, None)?;
+            let checkpoint = &snapshot.checkpoint;
+            let cutoff = now.saturating_sub(86_400);
+            let baseline = if checkpoint.time > cutoff {
+                conn.query_row(
+                    "SELECT height, hash, time, leaf_count, root FROM blocks
+                     WHERE height <= ?1 AND time <= ?2 ORDER BY height DESC LIMIT 1",
+                    params![checkpoint.height, cutoff],
+                    checkpoint_row,
+                )
+                .optional()?
+            } else {
+                None
+            };
+            let added = baseline
+                .as_ref()
+                .map(|b| checkpoint.leaf_count - b.leaf_count);
+            let percent = baseline.as_ref().filter(|b| b.leaf_count > 0).map(|b| {
+                (checkpoint.leaf_count - b.leaf_count) as f64 / b.leaf_count as f64 * 100.0
+            });
+            let latest_leaves = conn
+                .prepare_cached(
+                    "SELECT l.position, l.height, l.txid, l.tx_index, l.action_index, l.cmx, l.nullifier, b.time
+                 FROM leaves l JOIN blocks b ON b.height = l.height
+                 WHERE l.position < ?1 ORDER BY l.position DESC LIMIT ?2",
+                )?
+                .query_map(params![checkpoint.leaf_count, limit], leaf_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(Dashboard {
+                capacity: tree::CAPACITY,
+                used_percent: checkpoint.leaf_count as f64 / tree::CAPACITY as f64 * 100.0,
+                growth_24h: Growth24h {
+                    window_start: cutoff,
+                    window_end: now,
+                    baseline,
+                    added,
+                    percent,
+                },
+                snapshot,
+                latest_leaves,
+            })
+        })
+        .await
+    }
+
     pub async fn checkpoint(&self, height: u32) -> Result<Option<Checkpoint>> {
         self.read(move |conn| {
             Ok(conn
@@ -324,7 +394,7 @@ impl Store {
         );
         self.read(move |conn| {
             let snapshot = snapshot(conn, at)?;
-            let items = conn.prepare_cached("SELECT position, height, txid, tx_index, action_index, cmx, nullifier FROM leaves WHERE position >= ?1 AND position < ?2 ORDER BY position LIMIT ?3")?
+            let items = conn.prepare_cached("SELECT l.position, l.height, l.txid, l.tx_index, l.action_index, l.cmx, l.nullifier, b.time FROM leaves l JOIN blocks b ON b.height = l.height WHERE l.position >= ?1 AND l.position < ?2 ORDER BY l.position LIMIT ?3")?
                 .query_map(params![from, snapshot.checkpoint.leaf_count, limit], leaf_row)?.collect::<rusqlite::Result<Vec<_>>>()?;
             let next = items.last().map(|l| l.position + 1).filter(|n| *n < snapshot.checkpoint.leaf_count);
             Ok(Page { snapshot, items, next })
@@ -334,7 +404,7 @@ impl Store {
     pub async fn nullifier(&self, value: Bytes32) -> Result<(Snapshot, Option<Leaf>)> {
         self.read(move |conn| {
             let snapshot = snapshot(conn, None)?;
-            let leaf = conn.query_row("SELECT position, height, txid, tx_index, action_index, cmx, nullifier FROM leaves WHERE nullifier = ?1", [value], leaf_row).optional()?;
+            let leaf = conn.query_row("SELECT l.position, l.height, l.txid, l.tx_index, l.action_index, l.cmx, l.nullifier, b.time FROM leaves l JOIN blocks b ON b.height = l.height WHERE l.nullifier = ?1", [value], leaf_row).optional()?;
             Ok((snapshot, leaf))
         }).await
     }

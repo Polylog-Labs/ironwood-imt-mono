@@ -45,6 +45,8 @@ impl IntoResponse for ApiError {
 }
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .merge(crate::ui::routes())
+        .route("/v1/dashboard", get(dashboard))
         .route("/healthz", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/readyz", get(ready))
         .route("/v1/status", get(status))
@@ -75,6 +77,31 @@ async fn status(State(state): State<AppState>) -> Result<Json<Value>, ApiError> 
         "mempool": {"sequence":mempool.sequence, "observed_at":mempool.observed_at, "actions":mempool.actions.len(), "fresh":mempool_fresh, "failed":mempool.failed}
     })))
 }
+async fn dashboard(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let now = unix_time();
+    let data = state.store.dashboard(now, 12).await?;
+    let sync = state.sync.read().await.clone();
+    let mempool = state.mempool.read().await;
+    let chain_fresh = !sync.failed && fresh(sync.last_success, state.stale_after_seconds);
+    let caught_up = sync.node_hash == Some(data.snapshot.checkpoint.hash);
+    let mempool_fresh = !mempool.failed && fresh(mempool.observed_at, state.stale_after_seconds);
+    Ok(Json(json!({
+        "observed_at": now,
+        "tree_kind": "ironwood_note_commitment",
+        "data": data,
+        "sync": sync,
+        "chain_fresh": chain_fresh,
+        "caught_up": caught_up,
+        "ready": chain_fresh && caught_up && mempool_fresh,
+        "mempool": {
+            "actions": mempool.observed_at.map(|_| mempool.actions.len()),
+            "transactions": mempool.observed_at.map(|_| mempool.sampled_transactions),
+            "observed_at": mempool.observed_at,
+            "fresh": mempool_fresh,
+        }
+    })))
+}
+
 fn provider_status(state: &AppState) -> Value {
     state.providers.as_ref().map_or(
         Value::Null,

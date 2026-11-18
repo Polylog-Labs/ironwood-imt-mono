@@ -187,6 +187,8 @@ pub struct Snapshot {
 pub struct Leaf {
     pub position: u64,
     pub height: u32,
+    /// Timestamp of the containing block, not a wall-clock arrival time.
+    pub time: u64,
     pub txid: Bytes32,
     pub tx_index: u32,
     pub action_index: u32,

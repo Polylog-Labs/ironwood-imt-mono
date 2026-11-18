@@ -464,3 +464,140 @@ async fn a_later_batch_failure_rolls_back_earlier_blocks_and_subtrees() {
         blocks[0].expected_root
     );
 }
+
+#[tokio::test]
+async fn dashboard_uses_a_rolling_cutoff_and_keeps_root_and_latest_leaves_consistent() {
+    let (_dir, store) = database().await;
+    let now = 100_000;
+    let cutoff = now - 86_400;
+    let mut blocks = chain(&[vec![1, 2], vec![3, 4], vec![5, 6]]);
+    blocks[0].block.time = cutoff - 10;
+    blocks[1].block.time = cutoff;
+    blocks[2].block.time = now - 5;
+    store.apply_batch(blocks.clone()).await.unwrap();
+    let dashboard = store.dashboard(now, 2).await.unwrap();
+    assert_eq!(dashboard.growth_24h.window_start, cutoff);
+    assert_eq!(dashboard.growth_24h.baseline.unwrap().height, 11);
+    assert_eq!(dashboard.growth_24h.added, Some(2));
+    assert_eq!(dashboard.growth_24h.percent, Some(50.0));
+    assert_eq!(dashboard.snapshot.checkpoint.root, blocks[2].expected_root);
+    assert_eq!(dashboard.latest_leaves[0].time, blocks[2].block.time);
+    assert_eq!(dashboard.used_percent, 6.0 / tree::CAPACITY as f64 * 100.0);
+    assert_eq!(
+        dashboard
+            .latest_leaves
+            .iter()
+            .map(|l| l.position)
+            .collect::<Vec<_>>(),
+        vec![5, 4]
+    );
+    // Moving the wall-clock cutoff by one second changes the baseline; no calendar-day bucket.
+    let previous_second = store.dashboard(now - 1, 2).await.unwrap();
+    assert_eq!(previous_second.growth_24h.added, Some(4));
+    assert_eq!(previous_second.growth_24h.percent, Some(200.0));
+    store.rollback(11).await.unwrap();
+    let after_rollback = store.dashboard(now - 1, 2).await.unwrap();
+    assert_eq!(after_rollback.snapshot.generation, 1);
+    assert_eq!(
+        after_rollback.snapshot.checkpoint.root,
+        blocks[1].expected_root
+    );
+    assert_eq!(after_rollback.latest_leaves[0].position, 3);
+    assert_eq!(after_rollback.growth_24h.added, Some(2));
+}
+
+#[tokio::test]
+async fn dashboard_handles_zero_missing_and_stale_growth_baselines() {
+    let (_dir, store) = database().await;
+    let mut blocks = chain(&[vec![1, 2]]);
+    blocks[0].block.time = 100_000;
+    store.apply_batch(blocks).await.unwrap();
+    let zero = store.dashboard(100_000, 12).await.unwrap();
+    assert_eq!(zero.growth_24h.added, Some(2));
+    assert_eq!(zero.growth_24h.percent, None);
+    let missing = store.dashboard(86_450, 12).await.unwrap();
+    assert!(missing.growth_24h.baseline.is_none());
+    assert!(missing.growth_24h.added.is_none());
+    assert!(missing.growth_24h.percent.is_none());
+    let stale = store.dashboard(200_000, 12).await.unwrap();
+    assert!(
+        stale.growth_24h.added.is_none(),
+        "an old checkpoint must not look like zero growth today"
+    );
+    assert!(store.dashboard(100_000, 0).await.is_err());
+    assert!(store.dashboard(100_000, 101).await.is_err());
+}
+
+#[tokio::test]
+async fn dashboard_api_distinguishes_an_unsampled_mempool_from_an_empty_one() {
+    let (_dir, store) = database().await;
+    let block = chain(&[vec![1, 2]]).remove(0);
+    store.apply(block.clone()).await.unwrap();
+    let pending = Arc::new(RwLock::new(MempoolSnapshot::default()));
+    let sync = Arc::new(RwLock::new(SyncStatus {
+        node_height: Some(10),
+        node_hash: Some(block.block.hash),
+        last_success: Some(unix_time()),
+        failed: false,
+    }));
+    let app = api::router(AppState {
+        store,
+        mempool: pending.clone(),
+        sync,
+        providers: None,
+        stale_after_seconds: 60,
+    });
+    let (code, value) = request(app.clone(), "/v1/dashboard").await;
+    assert_eq!(code, StatusCode::OK);
+    assert!(value["mempool"]["actions"].is_null());
+    assert_eq!(value["ready"], false);
+    assert_eq!(
+        value["data"]["snapshot"]["checkpoint"]["root"],
+        json!(block.expected_root)
+    );
+    pending.write().await.observed_at = Some(unix_time());
+    let (_, value) = request(app, "/v1/dashboard").await;
+    assert_eq!(value["mempool"]["actions"], 0);
+    assert_eq!(value["ready"], true);
+    assert_eq!(value["data"]["latest_leaves"][0]["position"], 1);
+    assert_eq!(value["data"]["latest_leaves"][0]["time"], block.block.time);
+}
+
+#[tokio::test]
+async fn leaf_dates_follow_pinned_blocks_and_reorgs() {
+    let (_dir, store) = database().await;
+    let blocks = chain(&[vec![1, 2], vec![3]]);
+    store.apply_batch(blocks.clone()).await.unwrap();
+    let old_hash = blocks[1].block.hash;
+    let historical = store
+        .leaves(0, 10, Some(blocks[0].block.hash))
+        .await
+        .unwrap();
+    assert_eq!(historical.items.len(), 2);
+    assert!(
+        historical
+            .items
+            .iter()
+            .all(|l| l.time == blocks[0].block.time)
+    );
+    let latest = store.leaves(2, 1, Some(old_hash)).await.unwrap();
+    assert_eq!(latest.items[0].time, blocks[1].block.time);
+    let (_, leaf) = store.nullifier(latest.items[0].nullifier).await.unwrap();
+    assert_eq!(leaf.unwrap().time, blocks[1].block.time);
+
+    store.rollback(10).await.unwrap();
+    assert!(
+        store
+            .leaves(2, 1, Some(old_hash))
+            .await
+            .unwrap_err()
+            .is::<SnapshotGone>()
+    );
+    let mut replacement = chain(&[vec![1, 2], vec![4]]).remove(1);
+    replacement.block.hash = bytes(123456);
+    replacement.block.time += 60;
+    store.apply(replacement.clone()).await.unwrap();
+    let replaced = store.leaves(2, 1, None).await.unwrap();
+    assert_eq!(replaced.items[0].time, replacement.block.time);
+    assert_eq!(replaced.items[0].cmx, bytes(4));
+}

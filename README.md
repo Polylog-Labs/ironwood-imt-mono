@@ -1,6 +1,6 @@
 # Ironwood indexer
 
-A single Rust crate and service that indexes all public Ironwood note commitments and nullifiers from a Zcash RPC, verifies the commitment tree, persists block deltas in SQLite, and serves a read-only HTTP API. No UI.
+A single Rust crate and service that indexes all public Ironwood note commitments and nullifiers from a Zcash RPC, verifies the commitment tree, persists block deltas in SQLite, and serves a read-only HTTP API with an interactive local tree explorer.
 
 **The depth-32 tree is the note commitment tree.** Its capacity is 2³² leaves; it is not necessarily full. Zcash maintains a separate Ironwood nullifier set. This service indexes both, but does not invent a consensus nullifier-tree root or implement the separate voting/PIR indexed nullifier tree. Note commitments and nullifiers cannot be used to link a spent note to its original commitment.
 
@@ -12,6 +12,8 @@ Use a free public **lightwalletd** endpoint. No full node or API key is required
 cargo build --release --locked
 ./target/release/ironwood-indexer --public-rpc
 ```
+
+Open `http://127.0.0.1:3000/` for the dashboard. It shows capacity usage, rolling 24-hour growth, pending commitments, the newest leaves, and the verified root. Static HTML/CSS/JS is embedded in the Rust binary; no frontend build or Node runtime is required. It refreshes every 10 seconds.
 
 This starts the HTTP API while history downloads. The public preset uses Stardust, Cake Wallet, Zec.rocks, and ZcashESP, in that order. It is mainnet-only. Stop with Ctrl-C and run the same command to resume from SQLite.
 
@@ -71,16 +73,20 @@ All routes are GET-only. `/v1/status` also includes the provider status. Provide
 
 | Route | Result |
 | --- | --- |
+| `/` | Interactive tree explorer |
+| `/v1/dashboard` | One database snapshot of occupancy, growth, root, and the 12 newest leaves, with sync/mempool freshness |
 | `/healthz` | Process liveness |
 | `/readyz` | 200 when caught up to a recent sampled node tip and mempool sample; otherwise 503 |
 | `/v1/status` | Checkpoint, tree capacity, sync progress, freshness, reorg generation |
 | `/v1/providers` | Selected sources, transport, consecutive failures, cooldown, and last completed operation, separately for chain and mempool |
-| `/v1/leaves?from=0&limit=100&at=HASH` | Commitment and nullifier rows in confirmed leaf order |
+| `/v1/leaves?from=0&limit=100&at=HASH` | Commitment and nullifier rows in confirmed leaf order, with containing block timestamps (`time`) |
 | `/v1/nullifiers?from=0&limit=100&at=HASH` | The same action rows, including all nullifiers |
 | `/v1/nullifiers/HEX` | Current confirmed membership and source action, or `found: false` |
 | `/v1/blocks?from=HEIGHT&limit=100&at=HASH` | Block roots, leaf counts, and added position ranges |
 | `/v1/tree/nodes/LEVEL/INDEX?at=HASH` | Node hash, occupied count and position interval, including empty nodes |
 | `/v1/mempool?from=0&limit=100&sequence=N` | Pending Ironwood commitments/nullifiers and observation time |
+
+Rolling growth is `(current_count - baseline_count) / baseline_count × 100`, where the baseline is the highest canonical block at or before server time minus 86,400 seconds, using block timestamps. The growth endpoint includes the actual baseline checkpoint. Missing history, a zero denominator, or a checkpoint older than the window produces no percentage; the dashboard also withholds it while chain state is stale. A brief gap to a newly sampled tip does not hide a recent verified reading.
 
 `from` is inclusive; `next` is the next `from`, or null. Limits are 1–1000. Tree level 0 is a leaf, level 32 is the root; node indices start at zero. Position/count types are 64-bit so a full tree's **count** of 2³² fits.
 
@@ -88,11 +94,25 @@ For a consistent export, take `snapshot.checkpoint.hash` from the first page and
 
 For animation, poll status, then fetch new `/v1/blocks` rows and their position ranges from `/v1/leaves`. On a `generation` change, discard cached branch-dependent state and reload. Canonical historical roots/nodes remain queryable; orphan history and old mempool samples are not archived.
 
+## Tree explorer
+
+Open the API origin in a browser (locally, `http://localhost:3001/` when started with `--bind 127.0.0.1:3001`). The Rust binary embeds all assets; no frontend server, JavaScript runtime, external fonts, or CDN is needed in production.
+
+Drag or scroll horizontally to pan, scroll vertically or pinch to zoom, and click a node to inspect it. Shift-scroll also pans horizontally. Double-click a branch to descend. The controls jump to the whole tree, occupied region, latest leaf, or any index including an empty position. Keyboard controls: `+`/`-` zoom, arrow keys pan, `Home` shows the whole tree. Recent leaves and index search also expose individual commitments without pointer navigation.
+
+The canvas renders only the visible interval and a few levels at a time. Coarse nodes represent exact subtree ranges; they are not individual leaves or sampled commitments. Geometry is derived from the depth and verified append count, with no full-tree allocation. Visible leaf reads are capped at 128 per request, the leaf cache at 256 entries, and the pixel ratio at 2. Rendering stops when the camera is idle. API reads use the displayed block hash, cancel obsolete requests, and refresh after a 409 from a reorganization. Polling every 10 seconds preserves the camera and selection.
+
+The inspector shows real subtree hashes and, for occupied leaves, the containing block's timestamp in UTC. This is not a precise arrival time. Empty leaf values are **2**, encoded as `02` followed by 31 zero bytes; empty internal nodes use the recursively hashed empty subtree. UI depth counts down from the root (0–32), while the API's level counts up from leaves (0–32).
+
+The estimated fill date is a **linear** projection: `observed_at + (capacity - current_count) / additions_24h * 86400`. It assumes constant absolute additions per day, not compound percentage growth. Missing/zero growth or stale chain data gives no estimate. An empty leaf at index `i` shows its own likely fill date, using `(i + 1 - current_count) / additions_24h` days; the first empty leaf still requires one addition. Neither mempool values nor empty leaves count toward occupancy or the projection.
+
 ## Cost and deployment
 
-Use **SQLite now**, on the same VPS disk as the indexer. There is one ingestion writer, paginated indexed reads, and no need for a database server, queue, cache server, or distributed infrastructure. Start with a provisional 2-vCPU/2-GB indexer VPS with SSD storage and measure against your node and traffic; this is a sizing starting point, not a measured production requirement. The full Zcash node has separate, substantially larger storage requirements. Use an existing trusted node over a private connection when available.
+Use **SQLite now**, on the same VPS disk as the indexer. There is one ingestion writer, paginated indexed reads, and no need for a database server, queue, cache server, or distributed infrastructure. For about 25 simultaneous viewers, start with 1 shared vCPU, 1 GiB RAM, and 25 GiB SSD: the DigitalOcean Basic Regular plan is [$6/month](https://www.digitalocean.com/pricing/droplets) as of 2026-11-18. This is a starting recommendation, not a measured Droplet capacity guarantee. Run the indexer against remote lightwalletd/RPC providers; a full Zcash node has substantially larger requirements. Build the Linux release binary in CI or on a build machine, then run it under a process supervisor behind an HTTPS reverse proxy on the VPS.
 
 Storage grows with occupied actions, not tree capacity. A fully allocated array of 2³² 32-byte leaves alone is **128 GiB**. Here, each action stores its commitment, nullifier, source transaction, and indices. Completed internal subtrees total fewer than one per occupied leaf; empty subtrees are constants, and partially occupied subtrees are reconstructed in O(32) work. All canonical historical tree views share these immutable nodes; there is no full-tree copy per block.
+
+A short local loopback check on 2026-11-18 completed 300 mixed dashboard, leaf-page, and partial-subtree requests from 25 concurrent clients with no errors and endpoint p95 latencies below 26 ms. The running indexer used about 18 MiB resident memory after that check; this is not a peak-memory measurement. The current database was about 331 MiB plus WAL. This does not measure a shared DigitalOcean CPU or internet latency. With each viewer polling every 10 seconds, 25 open pages produce about 2.5 dashboard requests/second, plus exploration requests.
 
 Plan disk from measured bytes per action × expected actions, plus block metadata, WAL headroom, and backups. The local benchmark below prints bytes/action and ingestion rate; its synthetic workload excludes RPC and should not be treated as a production throughput claim. Do not provision for a hypothetical full tree before measuring actual occupancy.
 
@@ -114,6 +134,7 @@ Back up using SQLite's online backup API or `sqlite3 data/ironwood.sqlite '.back
 cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --all-targets --locked
+node --test tests/tree-model.mjs # optional Node 18+ for frontend geometry/projection tests
 cargo run --release --locked --example bench_ingest -- 10000
 # Optional network check: all four providers, first ten Ironwood blocks and mempool.
 cargo run --release --locked --example check_providers
