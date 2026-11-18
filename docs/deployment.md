@@ -4,7 +4,7 @@
 
 ## Run the indexer on a VPS
 
-Keep one Rust process and its SQLite database on persistent local disk. Use remote lightwalletd/RPC providers, so the VPS does not need a full Zcash node. Build a Linux release binary for the VPS architecture on a build machine or in CI.
+Keep one Rust process and its SQLite database on persistent local disk. Use remote lightwalletd/RPC providers, so the VPS does not need a full Zcash node. Build a Linux release binary for the VPS architecture on a build machine or in CI. The build machine needs Node.js 22.18+ and `npm ci --ignore-scripts` before `cargo build --release --locked`; Cargo compiles and embeds the UI. Only the resulting Rust binary is needed on the VPS.
 
 ```sh
 ./ironwood-indexer --public-rpc \
@@ -18,12 +18,12 @@ For a small installation, start with 1 shared vCPU, 1 GiB RAM, and 25 GiB SSD. T
 
 ## Deploy the UI on Vercel
 
-Vercel serves the HTML, CSS, and JavaScript and forwards `/v1/*`, `/healthz`, and `/readyz` to your VPS. The sync process and SQLite database remain on the VPS. There are no Vercel Functions or frontend package dependencies.
+Vercel serves the HTML, CSS, and compiled TypeScript and forwards `/v1/*`, `/healthz`, and `/readyz` to your VPS. The sync process and SQLite database remain on the VPS. There are no Vercel Functions or browser runtime npm dependencies.
 
 The Vercel build adds Web Analytics to both `/` and `/ironwood` using its deferred, same-origin tracking script. Enable Web Analytics for the project before deploying; view traffic in the project's Analytics tab. Analytics requests stay on Vercel and do not hit the Rust API. Local and embedded Rust pages do not include tracking.
 
 1. Import the repository into Vercel. Set **Root Directory** to the repository root and **Framework Preset** to **Other**.
-2. Leave the build settings supplied by `vercel.json` in place: **Build Command** is `node scripts/build-vercel.mjs`; **Install Command** is empty. Leave **Output Directory** unset. Use Node.js 22 or newer. You can deploy now; the UI shows a standby view until the API is available.
+2. Leave the build settings supplied by `vercel.json` in place: **Build Command** is `npm run build:vercel`; **Install Command** is `npm ci --ignore-scripts`. Leave **Output Directory** unset. Use Node.js 22.18 or newer. The build checks all TypeScript and compiles the browser modules. You can deploy now; the UI shows a standby view until the API is available.
 3. Make the VPS API reachable at a public HTTPS origin, for example `https://api.example.com`. Check that `/healthz` returns JSON and `/v1/dashboard` returns data. `/readyz` returns 503 until chain and mempool observations are current.
 4. Add **`IRONWOOD_API_ORIGIN=https://api.example.com`** to the Production and Preview environments you intend to deploy, then redeploy. Use the API origin only, without `/v1`, credentials, query parameters, or a fragment. It must be reachable from Vercel; localhost points to the build/deployment environment, not your VPS.
 
@@ -38,9 +38,10 @@ The Rust API includes a 20-request/second limiter with a 240-request burst per c
 Check the packaging locally, without deploying:
 
 ```sh
-node scripts/build-vercel.mjs # UI only, when IRONWOOD_API_ORIGIN is unset
-IRONWOOD_API_ORIGIN=https://api.example.com node scripts/build-vercel.mjs
-node --test tests/*.mjs
+npm ci --ignore-scripts
+npm run build:vercel # UI only, when IRONWOOD_API_ORIGIN is unset
+IRONWOOD_API_ORIGIN=https://api.example.com npm run build:vercel
+npm test
 ```
 
 This verifies the artifact and configuration; it does not check connectivity to the configured origin. After deployment, check `/v1/dashboard` through the Vercel URL, then open `/ironwood` and select **Latest leaf** to verify snapshot queries and leaf inspection.

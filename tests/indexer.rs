@@ -307,6 +307,55 @@ async fn request(app: axum::Router, uri: &str) -> (StatusCode, Value) {
 }
 
 #[tokio::test]
+async fn embedded_ui_serves_compiled_modules_without_a_node_runtime() {
+    let (_dir, store) = database().await;
+    let app = api::router(AppState {
+        store,
+        mempool: Arc::new(RwLock::new(MempoolSnapshot::default())),
+        sync: Arc::new(RwLock::new(SyncStatus::default())),
+        providers: None,
+        stale_after_seconds: 60,
+    });
+    for (uri, expected) in [
+        ("/dashboard.js", "from \"./tree.js\""),
+        ("/tree.js", "from \"./dom.js\""),
+        ("/tree-model.js", "export const DEPTH = 32"),
+        ("/tree-model.mjs", "export const DEPTH = 32"),
+        ("/dom.js", "document.getElementById"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        assert_eq!(
+            response.headers()["content-type"],
+            "text/javascript; charset=utf-8"
+        );
+        let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let script = std::str::from_utf8(&body).unwrap();
+        assert!(script.contains(expected), "{uri}");
+        assert!(!script.contains(".ts\""), "uncompiled import in {uri}");
+    }
+    for uri in ["/", "/ironwood", "/ironwood/"] {
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        assert!(
+            !std::str::from_utf8(&body)
+                .unwrap()
+                .contains("/_vercel/insights/"),
+            "local pages should not include Vercel analytics"
+        );
+    }
+}
+
+#[tokio::test]
 async fn api_pagination_history_bounds_readiness_and_reorg_conflicts() {
     let (_dir, store) = database().await;
     let blocks = chain(&[vec![1, 2], vec![3]]);

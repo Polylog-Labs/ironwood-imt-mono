@@ -1,4 +1,6 @@
-import { TreeView } from "./tree.js";
+import { TreeView } from "./tree.ts";
+import { byId } from "./dom.ts";
+import type { DashboardResponse, Leaf, Page, TreeNode } from "./api-types.js";
 import {
   DEPTH,
   CAPACITY,
@@ -7,7 +9,8 @@ import {
   fillProjection,
   leafFillProjection,
   syncProgress,
-} from "./tree-model.mjs";
+  type NodeInfo,
+} from "./tree-model.ts";
 
 const number = new Intl.NumberFormat("en-US");
 const percent = new Intl.NumberFormat("en-US", {
@@ -31,20 +34,19 @@ const clock = new Intl.DateTimeFormat("en-GB", {
   hour12: false,
   timeZone: "UTC",
 });
-const byId = (id) => document.getElementById(id);
-const text = (id, value) => {
+const text = (id: string, value: string) => {
   byId(id).textContent = value;
 };
-const time = (timestamp) => `${clock.format(new Date(timestamp * 1000))} UTC`;
-let payload = null;
-let timer;
+const time = (timestamp: number) => `${clock.format(new Date(timestamp * 1000))} UTC`;
+let payload: DashboardResponse | null = null;
+let timer: number | undefined;
 let inFlight = false;
 let retryNotBefore = 0;
-let selected = { depth: 0, index: 0 };
-let selectionRequest;
+let selected = nodeInfo(0, 0, 0);
+let selectionRequest: AbortController | undefined;
 let selectionVersion = 0;
 
-const tree = new TreeView(byId("tree-canvas"), {
+const tree = new TreeView(byId("tree-canvas", "canvas"), {
   onSelect: (node) => {
     selected = node;
     inspect();
@@ -59,12 +61,12 @@ const tree = new TreeView(byId("tree-canvas"), {
   },
 });
 
-function status(label, kind = "") {
+function status(label: string, kind = "") {
   text("status", label);
   byId("status").className = `status ${kind}`;
 }
 
-function renderSync(next, unavailable = false) {
+function renderSync(next: DashboardResponse | null, unavailable = false) {
   const panel = byId("sync-panel");
   panel.hidden = next?.ready === true;
   if (panel.hidden) return;
@@ -74,8 +76,8 @@ function renderSync(next, unavailable = false) {
     snapshot?.checkpoint.height,
     next?.sync.node_height,
   );
-  const bar = byId("sync-progress");
-  if (progress) {
+  const bar = byId("sync-progress", "progress");
+  if (progress && next && snapshot && next.sync.node_height !== null) {
     bar.value = progress.percent;
     // Keep 100% reserved for completion, even with only one block remaining.
     text("sync-percent", `${Math.min(progress.percent, progress.remaining ? 99.99 : 100).toFixed(2)}%`);
@@ -95,7 +97,7 @@ function renderSync(next, unavailable = false) {
     : next ? "API syncing" : "API sync");
 }
 
-function render(next) {
+function render(next: DashboardResponse) {
   const previousHash = payload?.data.snapshot.checkpoint.hash;
   payload = next;
   const { data, mempool, sync } = payload;
@@ -106,7 +108,7 @@ function render(next) {
   document.body.dataset.connection = "online";
   byId("tree-waiting").hidden = true;
   byId("explorer-toolbar").inert = false;
-  byId("tree-canvas").inert = false;
+  byId("tree-canvas", "canvas").inert = false;
   text("root-label", "CURRENT ROOT");
   text(
     "network",
@@ -115,7 +117,7 @@ function render(next) {
       : data.snapshot.network.toUpperCase(),
   );
   text("usage", `${data.used_percent.toFixed(5)}%`);
-  byId("capacity-bar").value = data.used_percent;
+  byId("capacity-bar", "progress").value = data.used_percent;
   text(
     "leaf-count",
     `${number.format(tip.leaf_count)} / ${number.format(data.capacity)} leaves`,
@@ -156,7 +158,7 @@ function render(next) {
   );
   text(
     "fill-detail",
-    projection
+    projection && growth.added !== null
       ? projection.days === 0
         ? "All leaf positions are occupied"
         : `At ${number.format(growth.added)} new leaves per day`
@@ -198,7 +200,8 @@ function render(next) {
   }
 }
 
-function renderLeafEstimate(node) {
+function renderLeafEstimate(node: NodeInfo) {
+  if (!payload) return;
   const emptyLeaf = node.depth === DEPTH && node.occupied === 0;
   byId("node-fill-row").hidden = !emptyLeaf;
   if (!emptyLeaf) return;
@@ -216,7 +219,7 @@ function renderLeafEstimate(node) {
       ? `${calendar.format(new Date(estimate.timestamp * 1000))} UTC`
       : "No estimate",
   );
-  const explanation = estimate
+  const explanation = estimate && added !== null
     ? `Estimated at ${number.format(added)} leaves/day, continuing the last 24 hours’ rate.`
     : !payload.chain_fresh
       ? "A fresh chain snapshot is needed to estimate its fill date."
@@ -231,8 +234,8 @@ function renderLeafEstimate(node) {
   );
 }
 
-function renderRecent(leaves) {
-  const cards = leaves.slice(0, 8).map((leaf) => {
+function renderRecent(leaves: Leaf[]) {
+  const cards: HTMLElement[] = leaves.slice(0, 8).map((leaf) => {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "leaf-card";
@@ -260,7 +263,7 @@ function renderRecent(leaves) {
         block: "center",
         behavior: tree.reducedMotion.matches ? "instant" : "smooth",
       });
-      byId("tree-canvas").focus({ preventScroll: true });
+      byId("tree-canvas", "canvas").focus({ preventScroll: true });
     });
     return card;
   });
@@ -323,8 +326,8 @@ async function inspect() {
   byId("node-tx-row").hidden = true;
   byId("node-action-row").hidden = true;
   byId("node-tx").replaceChildren();
-  byId("node-transaction-link").hidden = true;
-  byId("node-transaction-link").removeAttribute("href");
+  byId("node-transaction-link", "a").hidden = true;
+  byId("node-transaction-link", "a").removeAttribute("href");
   text("node-added", "Loading…");
   text("node-block", "Loading…");
   text("node-hash-label", isLeaf ? "LEAF COMMITMENT" : "NODE HASH");
@@ -339,20 +342,20 @@ async function inspect() {
         : "Click a child node or explore this branch to reveal the leaves below it.",
   );
   renderLeafEstimate(node);
-  byId("explore-node").disabled = false;
+  byId("explore-node", "button").disabled = false;
   text("explore-node", isLeaf ? "Locate leaf ↗" : "Explore branch ↗");
-  byId("parent-node").disabled = node.depth === 0;
+  byId("parent-node", "button").disabled = node.depth === 0;
   byId("node-error").hidden = true;
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    let hash;
-    let leaf;
+    let hash: string;
+    let leaf: Leaf | undefined;
     if (node.depth === 0) hash = tip.root;
     else if (isLeaf && !node.occupied) hash = EMPTY_LEAF;
     else if (isLeaf) {
       leaf = tree.leaves.get(node.index);
       if (!leaf) {
-        const page = await read(
+        const page = await read<Page<Leaf>>(
           `/v1/leaves?from=${node.index}&limit=1&at=${tip.hash}`,
           controller.signal,
         );
@@ -362,7 +365,7 @@ async function inspect() {
       }
       hash = leaf.cmx;
     } else {
-      const result = await read(
+      const result = await read<TreeNode>(
         `/v1/tree/nodes/${DEPTH - node.depth}/${node.index}?at=${tip.hash}`,
         controller.signal,
       );
@@ -379,13 +382,13 @@ async function inspect() {
         const source = document.createElement(mainnet ? "a" : "code");
         source.textContent = `${leaf.txid.slice(0, 10)}…${leaf.txid.slice(-10)}${mainnet ? " ↗" : ""}`;
         source.title = leaf.txid;
-        if (mainnet) {
+        if (source instanceof HTMLAnchorElement) {
           source.href = `https://www.blockgrey.com/zcash/tx/${leaf.txid}`;
           source.target = "_blank";
           source.rel = "noopener noreferrer";
           source.setAttribute("aria-label", `View transaction ${leaf.txid} on BlockGrey`);
-          byId("node-transaction-link").href = source.href;
-          byId("node-transaction-link").hidden = false;
+          byId("node-transaction-link", "a").href = source.href;
+          byId("node-transaction-link", "a").hidden = false;
         }
         byId("node-tx").append(source);
         byId("node-tx-row").hidden = false;
@@ -403,7 +406,7 @@ async function inspect() {
     text("node-block", "Unavailable");
     text(
       "node-error",
-      error.message === "snapshot-gone"
+      error instanceof Error && error.message === "snapshot-gone"
         ? "This block was reorganized. Refreshing…"
         : "Could not load this node. Select it again or refresh to retry.",
     );
@@ -413,7 +416,7 @@ async function inspect() {
   }
 }
 
-async function read(url, signal) {
+async function read<T>(url: string, signal: AbortSignal): Promise<T> {
   if (Date.now() < retryNotBefore) throw new Error("rate-limited");
   const response = await fetch(url, { signal, cache: "no-store" });
   if (response.status === 429) {
@@ -426,29 +429,30 @@ async function read(url, signal) {
     throw new Error("snapshot-gone");
   }
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  const body: unknown = await response.json();
+  return body as T;
 }
 
 async function refresh() {
   if (inFlight || document.hidden) return false;
   if (Date.now() < retryNotBefore) {
     clearTimeout(timer);
-    timer = setTimeout(refresh, retryNotBefore - Date.now());
+    timer = window.setTimeout(refresh, retryNotBefore - Date.now());
     return false;
   }
   clearTimeout(timer);
   inFlight = true;
-  byId("refresh").disabled = true;
-  byId("retry-connection").disabled = true;
+  byId("refresh", "button").disabled = true;
+  byId("retry-connection", "button").disabled = true;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    render(await read("/v1/dashboard", controller.signal));
+    render(await read<DashboardResponse>("/v1/dashboard", controller.signal));
     return true;
   } catch (error) {
     renderSync(payload, true);
     document.body.dataset.connection = payload ? "stale" : "offline";
-    const limited = error.message === "rate-limited";
+    const limited = error instanceof Error && error.message === "rate-limited";
     status(limited ? "Retrying shortly" : payload ? "Last known state" : "On standby", "offline");
     if (payload) {
       text("root-label", "LAST VERIFIED ROOT");
@@ -478,9 +482,9 @@ async function refresh() {
   } finally {
     clearTimeout(timeout);
     inFlight = false;
-    byId("refresh").disabled = false;
-    byId("retry-connection").disabled = false;
-    if (!document.hidden) timer = setTimeout(refresh, Math.max(10_000, retryNotBefore - Date.now()));
+    byId("refresh", "button").disabled = false;
+    byId("retry-connection", "button").disabled = false;
+    if (!document.hidden) timer = window.setTimeout(refresh, Math.max(10_000, retryNotBefore - Date.now()));
   }
 }
 
@@ -492,12 +496,12 @@ byId("view-latest").addEventListener("click", () =>
 );
 byId("zoom-in").addEventListener("click", () => tree.zoom(1));
 byId("zoom-out").addEventListener("click", () => tree.zoom(-1));
-byId("explore-node").addEventListener("click", () =>
+byId("explore-node", "button").addEventListener("click", () =>
   selected.depth === DEPTH
     ? tree.goLeaf(selected.index)
     : tree.explore(selected),
 );
-byId("parent-node").addEventListener("click", () => {
+byId("parent-node", "button").addEventListener("click", () => {
   if (selected.depth === 0) return;
   const node = nodeInfo(
     selected.depth - 1,
@@ -509,7 +513,7 @@ byId("parent-node").addEventListener("click", () => {
 });
 byId("leaf-search").addEventListener("submit", (event) => {
   event.preventDefault();
-  const raw = byId("leaf-index").value.replace(/[ ,]/g, "");
+  const raw = byId("leaf-index", "input").value.replace(/[ ,]/g, "");
   const index = Number(raw);
   if (
     !/^\d+$/.test(raw) ||
@@ -526,13 +530,13 @@ byId("leaf-search").addEventListener("submit", (event) => {
   }
   byId("search-error").hidden = true;
   tree.goLeaf(index);
-  byId("tree-canvas").focus({ preventScroll: true });
+  byId("tree-canvas", "canvas").focus({ preventScroll: true });
 });
 async function retry() {
   if (await refresh()) inspect();
 }
-byId("refresh").addEventListener("click", retry);
-byId("retry-connection").addEventListener("click", retry);
+byId("refresh", "button").addEventListener("click", retry);
+byId("retry-connection", "button").addEventListener("click", retry);
 document.addEventListener("visibilitychange", () => {
   clearTimeout(timer);
   if (!document.hidden) refresh();

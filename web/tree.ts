@@ -8,36 +8,79 @@ import {
   zoomAt,
   layout,
   clamp,
-} from "./tree-model.mjs";
+  type Camera,
+  type NodeCoordinates,
+  type NodeInfo,
+  type PositionedNode,
+} from "./tree-model.ts";
+import type { Leaf, Page, Snapshot } from "./api-types.js";
+import { byId } from "./dom.ts";
+
+interface Point {
+  x: number;
+  y: number;
+}
+interface TreeCallbacks {
+  onSelect: (node: NodeInfo) => void;
+  onSnapshotGone: () => void;
+}
 
 const number = new Intl.NumberFormat("en-US");
 const compact = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-const shortDate = (timestamp) =>
+const shortDate = (timestamp: number) =>
   new Date(timestamp * 1000).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     timeZone: "UTC",
   });
-const utcTime = (timestamp) =>
+const utcTime = (timestamp: number) =>
   `${new Date(timestamp * 1000).toISOString().slice(11, 19)} UTC`;
-const byId = (id) => document.getElementById(id);
-const sameNode = (a, b) => a && b && a.depth === b.depth && a.index === b.index;
+const sameNode = (a: NodeCoordinates | null, b: NodeCoordinates | null) =>
+  a && b && a.depth === b.depth && a.index === b.index;
 
 export class TreeView {
-  constructor(canvas, { onSelect, onSnapshotGone }) {
+  readonly canvas: HTMLCanvasElement;
+  readonly ctx: CanvasRenderingContext2D;
+  readonly onSelect: TreeCallbacks["onSelect"];
+  readonly onSnapshotGone: TreeCallbacks["onSnapshotGone"];
+  readonly reducedMotion: MediaQueryList;
+  readonly resizeObserver: ResizeObserver;
+  readonly leaves = new Map<number, Leaf>();
+  readonly pointers = new Map<number, Point>();
+  view: Camera;
+  target: Camera;
+  count: number;
+  width: number;
+  height: number;
+  frameId: number;
+  selected: NodeInfo | null;
+  hover: PositionedNode | null;
+  snapshot: Snapshot | null = null;
+  dpr = 1;
+  hits: PositionedNode[] = [];
+  leafRequest?: AbortController;
+  requestKey: string | null = null;
+  loadTimer?: number;
+  startPointer: Point | null = null;
+  dragged = false;
+
+  constructor(
+    canvas: HTMLCanvasElement,
+    { onSelect, onSnapshotGone }: TreeCallbacks,
+  ) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext("2d");
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas 2D rendering is unavailable");
+    this.ctx = context;
     this.onSelect = onSelect;
     this.onSnapshotGone = onSnapshotGone;
     this.view = camera(CAPACITY / 2, 0);
     this.target = { ...this.view };
     this.count = 0;
-    this.leaves = new Map();
-    this.pointers = new Map();
     this.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
     this.width = 1;
     this.height = 1;
@@ -60,7 +103,7 @@ export class TreeView {
     this.scheduleLoad();
   }
 
-  setSnapshot(snapshot, recentLeaves) {
+  setSnapshot(snapshot: Snapshot, recentLeaves: Leaf[]) {
     const changed = this.snapshot?.checkpoint.hash !== snapshot.checkpoint.hash;
     const first = !this.snapshot;
     this.snapshot = snapshot;
@@ -76,13 +119,13 @@ export class TreeView {
     this.scheduleLoad();
   }
 
-  select(node) {
+  select(node: NodeCoordinates) {
     this.selected = nodeInfo(node.depth, node.index, this.count);
     this.onSelect(this.selected);
     this.invalidate();
   }
 
-  moveTo(next, animate = true) {
+  moveTo(next: Camera, animate = true) {
     this.target = next;
     if (!animate || this.reducedMotion.matches) this.view = { ...next };
     this.hideTooltip();
@@ -90,7 +133,7 @@ export class TreeView {
     this.scheduleLoad();
   }
 
-  markView(name) {
+  markView(name: "whole" | "active" | "latest" | null) {
     for (const mode of ["whole", "active", "latest"]) {
       const button = byId(`view-${mode}`);
       button.classList.toggle("active", name === mode);
@@ -106,22 +149,22 @@ export class TreeView {
     this.markView("active");
     this.moveTo(activeCamera(this.count), animate);
   }
-  goLeaf(index, latest = false) {
+  goLeaf(index: number, latest = false) {
     this.markView(latest ? "latest" : null);
     this.moveTo(leafCamera(index));
     this.select(nodeInfo(DEPTH, index, this.count));
   }
-  explore(node) {
+  explore(node: NodeInfo) {
     this.markView(null);
     this.moveTo(
       camera(node.first + node.capacity / 2, Math.min(31, node.depth + 1)),
     );
   }
-  zoom(delta, x = this.width / 2) {
+  zoom(delta: number, x = this.width / 2) {
     this.markView(null);
     this.moveTo(zoomAt(this.target, delta, x, this.width));
   }
-  pan(dx, dy) {
+  pan(dx: number, dy: number) {
     const span = CAPACITY / 2 ** this.target.zoom;
     this.moveTo(
       camera(
@@ -146,7 +189,7 @@ export class TreeView {
       Math.abs(this.view.center - this.target.center) > span / 10000 ||
       Math.abs(this.view.panY - this.target.panY) > 0.1;
     if (moving) {
-      for (const key of ["zoom", "center", "panY"])
+      for (const key of ["zoom", "center", "panY"] as const)
         this.view[key] += (this.target[key] - this.view[key]) * 0.22;
     } else {
       this.view = { ...this.target };
@@ -159,7 +202,6 @@ export class TreeView {
       return;
     }
     const frame = layout(this.view, this.width, this.height, this.count);
-    this.frame = frame;
     const bottom = this.width < 440 ? this.height - 125 : this.height - 85;
     const lastVisibleDepth = Math.max(
       0,
@@ -167,11 +209,11 @@ export class TreeView {
     );
     const selected = this.selected;
     const latestPosition = this.count - 1;
-    const onLatestPath = (node) =>
+    const onLatestPath = (node: NodeInfo) =>
       this.count > 0 &&
       node.first <= latestPosition &&
       node.last >= latestPosition;
-    const onPath = (node) =>
+    const onPath = (node: NodeInfo) =>
       selected &&
       node.depth <= selected.depth &&
       node.first <= selected.first &&
@@ -304,9 +346,10 @@ export class TreeView {
       ctx.fillStyle = "#647d54";
       ctx.fillText(String(depth).padStart(2, "0"), 15, y + 3);
     }
-    const visible = this.hits;
-    byId("view-depth").textContent = visible.length
-      ? `DEPTH ${String(visible[0].depth).padStart(2, "0")} → ${String(visible.at(-1).depth).padStart(2, "0")}`
+    const firstVisible = this.hits[0];
+    const lastVisible = this.hits.at(-1);
+    byId("view-depth").textContent = firstVisible && lastVisible
+      ? `DEPTH ${String(firstVisible.depth).padStart(2, "0")} → ${String(lastVisible.depth).padStart(2, "0")}`
       : "DRAG TO REPOSITION";
     byId("view-scale").textContent =
       frame.lastDepth === DEPTH ? "INDIVIDUAL LEAVES" : "AGGREGATED BRANCHES";
@@ -320,8 +363,8 @@ export class TreeView {
     else this.scheduleLoad();
   }
 
-  hit(x, y) {
-    let nearest = null;
+  hit(x: number, y: number) {
+    let nearest: PositionedNode | null = null;
     let distance = 18;
     for (const node of this.hits || []) {
       const d = Math.hypot(node.x - x, node.y - y);
@@ -336,7 +379,7 @@ export class TreeView {
     byId("tree-tooltip").hidden = true;
     this.hover = null;
   }
-  showTooltip(node, x, y) {
+  showTooltip(node: PositionedNode | null, x: number, y: number) {
     this.hover = node;
     const tooltip = byId("tree-tooltip");
     if (!node) {
@@ -354,7 +397,7 @@ export class TreeView {
   }
 
   bindInput() {
-    const local = (event) => {
+    const local = (event: MouseEvent) => {
       const rect = this.canvas.getBoundingClientRect();
       return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     };
@@ -410,28 +453,30 @@ export class TreeView {
       const old = [...this.pointers.values()];
       this.pointers.set(event.pointerId, point);
       const next = [...this.pointers.values()];
-      if (next.length === 2) {
-        const distance = (pair) =>
-          Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y);
-        const midpoint = (pair) => ({
-          x: (pair[0].x + pair[1].x) / 2,
-          y: (pair[0].y + pair[1].y) / 2,
+      const [oldA, oldB] = old;
+      const [nextA, nextB] = next;
+      if (next.length === 2 && oldA && oldB && nextA && nextB) {
+        const distance = (a: Point, b: Point) =>
+          Math.hypot(a.x - b.x, a.y - b.y);
+        const midpoint = (a: Point, b: Point) => ({
+          x: (a.x + b.x) / 2,
+          y: (a.y + b.y) / 2,
         });
-        const a = midpoint(old),
-          b = midpoint(next);
+        const a = midpoint(oldA, oldB),
+          b = midpoint(nextA, nextB);
         this.pan(b.x - a.x, b.y - a.y);
-        if (distance(old) > 0 && distance(next) > 0) {
+        if (distance(oldA, oldB) > 0 && distance(nextA, nextB) > 0) {
           this.moveTo(
             zoomAt(
               this.target,
-              Math.log2(distance(next) / distance(old)),
+              Math.log2(distance(nextA, nextB) / distance(oldA, oldB)),
               b.x,
               this.width,
             ),
             false,
           );
         }
-      } else if (next.length === 1) {
+      } else if (next.length === 1 && this.startPointer) {
         if (
           Math.hypot(
             point.x - this.startPointer.x,
@@ -442,7 +487,7 @@ export class TreeView {
         if (this.dragged) this.pan(point.x - previous.x, point.y - previous.y);
       }
     });
-    const release = (event) => {
+    const release = (event: PointerEvent) => {
       const tracked = this.pointers.delete(event.pointerId);
       if (!tracked) return;
       if (!this.pointers.size) {
@@ -453,7 +498,7 @@ export class TreeView {
           if (node) this.select(node);
         }
         this.scheduleLoad();
-      } else this.startPointer = [...this.pointers.values()][0];
+      } else this.startPointer = this.pointers.values().next().value ?? null;
     };
     this.canvas.addEventListener("pointerup", release);
     this.canvas.addEventListener("pointercancel", release);
@@ -507,7 +552,7 @@ export class TreeView {
 
   scheduleLoad() {
     clearTimeout(this.loadTimer);
-    this.loadTimer = setTimeout(() => this.loadLeaves(), 160);
+    this.loadTimer = window.setTimeout(() => this.loadLeaves(), 160);
   }
   async loadLeaves() {
     if (!this.snapshot) return;
@@ -515,9 +560,11 @@ export class TreeView {
     const missing = frame.nodes.filter(
       (n) => n.depth === DEPTH && n.occupied && !this.leaves.has(n.index),
     );
-    if (!missing.length) return;
-    const from = missing[0].index;
-    const limit = missing.at(-1).index - from + 1;
+    const first = missing[0];
+    const last = missing.at(-1);
+    if (!first || !last) return;
+    const from = first.index;
+    const limit = last.index - from + 1;
     if (limit > 128) return; // Hard upper bound, independent of future layout changes.
     const hash = this.snapshot.checkpoint.hash;
     const key = `${hash}:${from}:${limit}`;
@@ -537,13 +584,16 @@ export class TreeView {
         return;
       }
       if (!response.ok) throw new Error("Leaf details unavailable");
-      const page = await response.json();
+      const page: Page<Leaf> = await response.json();
       if (controller.signal.aborted || this.snapshot.checkpoint.hash !== hash)
         return;
       for (const leaf of page.items) this.leaves.set(leaf.position, leaf);
       // Bounded cache; panning through millions of leaves never retains them all.
-      while (this.leaves.size > 256)
-        this.leaves.delete(this.leaves.keys().next().value);
+      while (this.leaves.size > 256) {
+        const oldest = this.leaves.keys().next();
+        if (oldest.done) break;
+        this.leaves.delete(oldest.value);
+      }
       this.invalidate();
     } catch {
       if (!controller.signal.aborted || this.leafRequest === controller) {

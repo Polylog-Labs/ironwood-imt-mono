@@ -12,7 +12,8 @@ import {
   fillProjection,
   leafFillProjection,
   syncProgress,
-} from "../web/tree-model.mjs";
+  type Camera,
+} from "../web/tree-model.ts";
 
 test("sync progress measures Ironwood history rather than counting pre-activation blocks", () => {
   assert.deepEqual(syncProgress(3_428_143, 3_428_142, 3_428_342), {
@@ -21,14 +22,14 @@ test("sync progress measures Ironwood history rather than counting pre-activatio
   assert.deepEqual(syncProgress(3_428_143, 3_428_242, 3_428_342), {
     indexed: 100, total: 200, remaining: 100, percent: 50,
   });
-  assert.equal(syncProgress(3_428_143, 3_428_342, 3_428_342).percent, 100);
-  assert.equal(syncProgress(1, 1, 1).percent, 100);
+  assert.equal(syncProgress(3_428_143, 3_428_342, 3_428_342)?.percent, 100);
+  assert.equal(syncProgress(1, 1, 1)?.percent, 100);
 });
 
 test("sync progress stays unknown for a missing tip or inconsistent heights", () => {
-  for (const heights of [[100, 99, null], [100, 99, undefined], [100, 99, 99],
-    [100, 98, 200], [100, 201, 200], [0, 0, 1], [100, 100.5, 200]]) {
-    assert.equal(syncProgress(...heights), null);
+  for (const [start, indexed, target] of [[100, 99, null], [100, 99, undefined], [100, 99, 99],
+    [100, 98, 200], [100, 201, 200], [0, 0, 1], [100, 100.5, 200]] as const) {
+    assert.equal(syncProgress(start, indexed, target), null);
   }
 });
 
@@ -62,6 +63,7 @@ test("leaf navigation reaches both ends, and occupancy is exact at the frontier"
   const mobileLeaf = layout(leafCamera(100), 360, 465, 200).nodes.find(
     (n) => n.depth === 32 && n.index === 100,
   );
+  assert.ok(mobileLeaf);
   assert.ok(
     mobileLeaf.y + 51 < 350,
     "leaf date must clear mobile navigation controls",
@@ -70,7 +72,7 @@ test("leaf navigation reaches both ends, and occupancy is exact at the frontier"
 test("zoom keeps the pointed leaf fixed away from boundaries", () => {
   const before = camera(CAPACITY / 2, 12);
   const after = zoomAt(before, 0.75, 700, 1000);
-  const world = (view) =>
+  const world = (view: Camera) =>
     view.center + (((700 - 500) / 920) * CAPACITY) / 2 ** view.zoom;
   assert.ok(Math.abs(world(before) - world(after)) < 0.000001);
   assert.equal(activeCamera(0).zoom, 27);
@@ -83,7 +85,7 @@ test("fill date uses constant absolute growth, including no-rate and full-tree c
   for (const rate of [null, 0, -1, NaN])
     assert.equal(fillProjection(10, rate, 1000, true), null);
   assert.equal(fillProjection(10, 10, 1000, false), null);
-  assert.equal(fillProjection(CAPACITY, 0, 1000, true).days, 0);
+  assert.equal(fillProjection(CAPACITY, 0, 1000, true)?.days, 0);
 });
 
 test("an empty leaf fills only after its own position is appended", () => {
@@ -91,7 +93,7 @@ test("an empty leaf fills only after its own position is appended", () => {
     days: 1 / 24,
     timestamp: 4600,
   });
-  assert.equal(leafFillProjection(123, 100, 24, 1000, true).days, 1);
+  assert.equal(leafFillProjection(123, 100, 24, 1000, true)?.days, 1);
   assert.deepEqual(
     leafFillProjection(CAPACITY - 1, 100, 24, 1000, true),
     fillProjection(100, 24, 1000, true),

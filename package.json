@@ -1,0 +1,18 @@
+{
+  "name": "ironwood-explorer",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json",
+    "build:web": "node scripts/build-web.ts",
+    "build:vercel": "npm run typecheck && node scripts/build-vercel.ts",
+    "test": "node --test tests/*.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,4 +1,25 @@
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { buildWeb, webAssets } from "./build-web.ts";
+
+export interface SourceRoute {
+  src: string;
+  dest?: string;
+  status?: number;
+  continue?: boolean;
+  headers?: Record<string, string>;
+  transforms?: {
+    type: "request.headers";
+    op: "set";
+    target: { key: string };
+    args: string;
+  }[];
+}
+
+export interface VercelConfig {
+  version: 3;
+  routes: (SourceRoute | { handle: "filesystem" })[];
+}
 
 // Emit Vercel's Build Output API directly; the explorer needs no bundler or functions.
 const root = new URL("../", import.meta.url);
@@ -9,7 +30,7 @@ if (proxyToken !== undefined && !/^[A-Za-z0-9_-]{32,}$/.test(proxyToken)) {
   console.error("IRONWOOD_PROXY_TOKEN must contain at least 32 ASCII letters, digits, hyphens or underscores.");
   process.exit(1);
 }
-let api = null;
+let api: URL | null = null;
 if (value) {
   try {
     api = new URL(value);
@@ -31,7 +52,7 @@ if (value) {
   }
 }
 
-const config = {
+const config: VercelConfig = {
   version: 3,
   routes: [
     {
@@ -70,28 +91,18 @@ const config = {
       continue: true,
     },
     { src: "^/ironwood/?$", dest: "/ironwood.html" },
+    // Support tabs opened before the TypeScript migration.
+    { src: "^/tree-model\\.mjs$", dest: "/tree-model.js" },
     { handle: "filesystem" },
   ],
-  overrides: {
-    "tree-model.mjs": { contentType: "text/javascript; charset=utf-8" },
-  },
 };
 
 // Only web assets enter the deployment. Never copy the database or the repo root.
+const assets = await buildWeb();
 await rm(output, { recursive: true, force: true });
 await mkdir(new URL("static/", output), { recursive: true });
-for (const file of [
-  "index.html",
-  "ironwood.html",
-  "dashboard.css",
-  "dashboard.js",
-  "tree.js",
-  "tree-model.mjs",
-  "favicon.svg",
-  "apple-touch-icon.png",
-  "share.png",
-]) {
-  const source = new URL(`web/${file}`, root);
+for (const file of webAssets) {
+  const source = join(assets, file);
   const destination = new URL(`static/${file}`, output);
   if (file.endsWith(".html")) {
     // Vercel's script records pageviews automatically. Keep local/Rust builds

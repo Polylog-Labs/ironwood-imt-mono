@@ -60,7 +60,7 @@ pub(crate) fn routes() -> Router<AppState> {
             get(|| async {
                 asset(
                     "text/javascript; charset=utf-8",
-                    include_str!("../web/dashboard.js"),
+                    include_str!(concat!(env!("OUT_DIR"), "/web/dashboard.js")),
                 )
             }),
         )
@@ -69,19 +69,28 @@ pub(crate) fn routes() -> Router<AppState> {
             get(|| async {
                 asset(
                     "text/javascript; charset=utf-8",
-                    include_str!("../web/tree.js"),
+                    include_str!(concat!(env!("OUT_DIR"), "/web/tree.js")),
                 )
             }),
         )
         .route(
-            "/tree-model.mjs",
+            "/dom.js",
             get(|| async {
                 asset(
                     "text/javascript; charset=utf-8",
-                    include_str!("../web/tree-model.mjs"),
+                    include_str!(concat!(env!("OUT_DIR"), "/web/dom.js")),
                 )
             }),
         )
+        .route("/tree-model.js", get(tree_model))
+        .route("/tree-model.mjs", get(tree_model))
+}
+
+async fn tree_model() -> Response {
+    asset(
+        "text/javascript; charset=utf-8",
+        include_str!(concat!(env!("OUT_DIR"), "/web/tree-model.js")),
+    )
 }
 
 async fn ironwood() -> Response {

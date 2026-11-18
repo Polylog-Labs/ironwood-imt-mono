@@ -4,11 +4,43 @@ export const DEPTH = 32;
 export const CAPACITY = 2 ** DEPTH;
 export const MAX_ZOOM = 31;
 export const EMPTY_LEAF = "02" + "00".repeat(31);
-export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+export const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+export interface Camera {
+  center: number;
+  zoom: number;
+  panY: number;
+}
+
+export interface NodeCoordinates {
+  depth: number;
+  index: number;
+}
+
+export interface NodeInfo extends NodeCoordinates {
+  capacity: number;
+  first: number;
+  last: number;
+  occupied: number;
+}
+
+export interface PositionedNode extends NodeInfo {
+  x: number;
+  y: number;
+  spacing: number;
+}
 
 // Indexing starts at Ironwood activation, not at genesis. The baseline has zero work done.
-export function syncProgress(startHeight, indexedHeight, targetHeight) {
+export function syncProgress(
+  startHeight: number | null | undefined,
+  indexedHeight: number | null | undefined,
+  targetHeight: number | null | undefined,
+) {
   if (
+    startHeight == null ||
+    indexedHeight == null ||
+    targetHeight == null ||
     ![startHeight, indexedHeight, targetHeight].every(Number.isSafeInteger) ||
     startHeight < 1 ||
     indexedHeight < startHeight - 1 ||
@@ -25,7 +57,7 @@ export function syncProgress(startHeight, indexedHeight, targetHeight) {
   };
 }
 
-export function camera(center, zoom, panY = 0) {
+export function camera(center: number, zoom: number, panY = 0): Camera {
   zoom = clamp(zoom, 0, MAX_ZOOM);
   const half = CAPACITY / 2 ** zoom / 2;
   return {
@@ -34,13 +66,13 @@ export function camera(center, zoom, panY = 0) {
     panY: clamp(panY, -100, 100),
   };
 }
-export function activeCamera(count) {
+export function activeCamera(count: number) {
   return camera(count / 2, Math.log2(CAPACITY / Math.max(count * 1.35, 32)));
 }
-export function leafCamera(index) {
+export function leafCamera(index: number) {
   return camera(index + 0.5, 29);
 }
-export function nodeInfo(depth, index, count) {
+export function nodeInfo(depth: number, index: number, count: number): NodeInfo {
   const capacity = 2 ** (DEPTH - depth);
   const first = index * capacity;
   return {
@@ -52,23 +84,23 @@ export function nodeInfo(depth, index, count) {
     occupied: clamp(count - first, 0, capacity),
   };
 }
-export function zoomAt(view, delta, x, width) {
+export function zoomAt(view: Camera, delta: number, x: number, width: number) {
   const usable = Math.max(1, width - 80);
   const offset = (x - width / 2) / usable;
   const anchor = view.center + (offset * CAPACITY) / 2 ** view.zoom;
   const zoom = clamp(view.zoom + delta, 0, MAX_ZOOM);
   return camera(anchor - (offset * CAPACITY) / 2 ** zoom, zoom, view.panY);
 }
-export function layout(view, width, height, count) {
+export function layout(view: Camera, width: number, height: number, count: number) {
   const usable = Math.max(1, width - 80);
   const span = CAPACITY / 2 ** view.zoom;
   const top = Math.min(27, Math.max(0, view.zoom - 0.7));
   const gap = Math.max(32, (height - (width < 440 ? 240 : 190)) / 5.5);
   const firstDepth = Math.max(0, Math.floor(top) - 1);
   const lastDepth = Math.min(DEPTH, Math.floor(view.zoom) + 5);
-  const xAt = (position) =>
+  const xAt = (position: number) =>
     ((position - view.center) / span) * usable + width / 2;
-  const yAt = (depth) => 82 + (depth - top) * gap + view.panY;
+  const yAt = (depth: number) => 82 + (depth - top) * gap + view.panY;
   const left = clamp(
     view.center - ((width / 2 + 35) / usable) * span,
     0,
@@ -79,7 +111,7 @@ export function layout(view, width, height, count) {
     0,
     CAPACITY,
   );
-  const nodes = [];
+  const nodes: PositionedNode[] = [];
   for (let depth = firstDepth; depth <= lastDepth; depth++) {
     const size = 2 ** (DEPTH - depth);
     const start = Math.max(0, Math.floor(left / size));
@@ -107,7 +139,12 @@ export function layout(view, width, height, count) {
 }
 // Linear projection of the observed absolute additions per rolling 24 hours.
 // No compounding; a missing/zero rate or stale chain has no finite estimate.
-export function fillProjection(count, added, observedAt, fresh) {
+export function fillProjection(
+  count: number,
+  added: number | null,
+  observedAt: number,
+  fresh: boolean,
+) {
   return projectAdditions(
     Math.max(0, CAPACITY - count),
     added,
@@ -116,7 +153,13 @@ export function fillProjection(count, added, observedAt, fresh) {
   );
 }
 
-export function leafFillProjection(index, count, added, observedAt, fresh) {
+export function leafFillProjection(
+  index: number,
+  count: number,
+  added: number | null,
+  observedAt: number,
+  fresh: boolean,
+) {
   if (
     !Number.isSafeInteger(index) ||
     index < count ||
@@ -128,7 +171,12 @@ export function leafFillProjection(index, count, added, observedAt, fresh) {
   return projectAdditions(index + 1 - count, added, observedAt, fresh);
 }
 
-function projectAdditions(remaining, added, observedAt, fresh) {
+function projectAdditions(
+  remaining: number,
+  added: number | null,
+  observedAt: number,
+  fresh: boolean,
+) {
   if (!fresh || added === null || !Number.isFinite(added) || added < 0)
     return null;
   if (remaining === 0) return { timestamp: observedAt, days: 0 };

@@ -17,14 +17,17 @@ Rendering and storage scale with the visible region and occupied leaves. The ser
 
 ## Run locally
 
+Install Node.js 22.18+ and the Rust toolchain, then:
+
 ```sh
+npm ci --ignore-scripts
 cargo build --release --locked
 ./target/release/ironwood-indexer --public-rpc
 ```
 
 Open **http://localhost:3000/ironwood**. The API starts while history syncs; stop with Ctrl-C and rerun to resume. The dashboard refreshes every 10 seconds.
 
-The public mainnet preset uses Stardust, Cake Wallet, Zec.rocks, and ZcashESP lightwalletd providers. No local Zcash node or API key is required. SQLite and the protobuf compiler are bundled; the embedded UI needs no Node runtime.
+The public mainnet preset uses Stardust, Cake Wallet, Zec.rocks, and ZcashESP lightwalletd providers. No local Zcash node or API key is required. SQLite and the protobuf compiler are bundled. Cargo compiles and embeds the TypeScript UI; the resulting binary needs no Node runtime.
 
 | Option | Default / purpose |
 | --- | --- |
@@ -61,13 +64,19 @@ See [deployment instructions](docs/deployment.md) for Vercel settings, a local b
 ## Development
 
 ```sh
+npm run typecheck
+npm test
+npm run build:vercel
 cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --all-targets --locked
-node --test tests/*.mjs
 ```
 
-Node 22+ is needed only for frontend tests and Vercel packaging. Optional tools:
+Application code is TypeScript and Rust. HTML, CSS, images, SQL, and protobuf definitions remain in their native formats. Browser JavaScript is generated, never maintained or committed. The UI has no runtime npm dependencies; TypeScript and Node types are build dependencies pinned in `package-lock.json`.
+
+`npm run build:web` emits the standalone UI to `dist/web/`. Cargo builds it into its own build directory, and Vercel packages it into `.vercel/output/`. These outputs, `node_modules/`, databases, and `.env` files are ignored. Scripts do not load environment files automatically; configure deployment variables in Vercel or your service environment.
+
+Optional tools:
 
 ```sh
 cargo run --release --locked --example bench_ingest -- 10000

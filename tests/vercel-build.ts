@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
@@ -8,12 +8,15 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { SourceRoute, VercelConfig } from "../scripts/build-vercel.ts";
 
-async function fixture(t) {
+async function fixture(t: TestContext) {
   const root = await mkdtemp(join(tmpdir(), "ironwood-vercel-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await cp(new URL("../scripts/", import.meta.url), join(root, "scripts"), {
@@ -22,20 +25,35 @@ async function fixture(t) {
   await cp(new URL("../web/", import.meta.url), join(root, "web"), {
     recursive: true,
   });
+  for (const file of ["package.json", "tsconfig.json", "tsconfig.web.json"]) {
+    await cp(new URL(`../${file}`, import.meta.url), join(root, file));
+  }
+  await symlink(fileURLToPath(new URL("../node_modules/", import.meta.url)), join(root, "node_modules"), "junction");
   return root;
 }
 
-function build(root, origin, token) {
+function build(root: string, origin?: string, token?: string) {
   const env = { ...process.env };
   delete env.IRONWOOD_API_ORIGIN;
   delete env.IRONWOOD_PROXY_TOKEN;
   if (origin !== undefined) env.IRONWOOD_API_ORIGIN = origin;
   if (token !== undefined) env.IRONWOOD_PROXY_TOKEN = token;
-  return spawnSync(process.execPath, ["scripts/build-vercel.mjs"], {
+  return spawnSync(process.execPath, ["scripts/build-vercel.ts"], {
     cwd: root,
     env,
     encoding: "utf8",
   });
+}
+
+async function configuration(output: string): Promise<VercelConfig> {
+  return JSON.parse(await readFile(join(output, "config.json"), "utf8"));
+}
+
+function forwardingRoute(config: VercelConfig) {
+  const route = config.routes.find((route): route is SourceRoute => "src" in route && route.dest !== undefined);
+  assert.ok(route?.dest);
+  assert.ok(route.headers);
+  return { ...route, dest: route.dest, headers: route.headers };
 }
 
 test("Vercel build packages the UI, isolates local data, and forwards only API routes", async (t) => {
@@ -49,31 +67,37 @@ test("Vercel build packages the UI, isolates local data, and forwards only API r
   const output = join(root, ".vercel/output");
   assert.deepEqual((await readdir(output)).sort(), ["config.json", "static"]);
   const assets = await readdir(join(output, "static"));
-  assert.deepEqual(assets, await readdir(join(root, "web")));
+  assert.deepEqual(assets.sort(), (await readdir(join(root, "dist/web"))).sort());
+  assert.ok(assets.includes("dashboard.js"));
+  assert.ok(assets.includes("dom.js"));
+  assert.ok(assets.every(file => !file.endsWith(".ts") && !file.endsWith(".map")));
+  assert.match(await readFile(join(output, "static/dashboard.js"), "utf8"), /from "\.\/tree\.js"/);
+  assert.doesNotMatch(await readFile(join(output, "static/dashboard.js"), "utf8"), /from "[^\"]+\.ts"/);
   for (const file of assets) {
     if (file.endsWith(".html")) {
       const html = await readFile(join(output, "static", file), "utf8");
       const script = '<script defer src="/_vercel/insights/script.js"></script>\n  ';
       assert.equal(html.split(script).length, 2, `${file} tracks exactly once`);
-      assert.equal(html.replace(script, ""), await readFile(join(root, "web", file), "utf8"));
+      assert.equal(html.replace(script, ""), await readFile(join(root, "dist/web", file), "utf8"));
       continue;
     }
     assert.deepEqual(
       await readFile(join(output, "static", file)),
-      await readFile(join(root, "web", file)),
+      await readFile(join(root, "dist/web", file)),
     );
   }
-  const config = JSON.parse(
-    await readFile(join(output, "config.json"), "utf8"),
-  );
+  const config = await configuration(output);
   assert.equal(config.version, 3);
-  const explorer = config.routes.find(route => route.dest === "/ironwood.html");
+  const explorer = config.routes.find((route): route is SourceRoute => "src" in route && route.dest === "/ironwood.html");
+  assert.ok(explorer);
   assert.ok(new RegExp(explorer.src).test("/ironwood"));
   assert.ok(new RegExp(explorer.src).test("/ironwood/"));
   assert.ok(!new RegExp(explorer.src).test("/ironwood-extra"));
   assert.match(await readFile(join(output, "static/index.html"), "utf8"), /href="\/ironwood"/);
-  assert.match(config.overrides["tree-model.mjs"].contentType, /javascript/);
-  const proxy = config.routes.find((route) => route.dest);
+  const legacyModel = config.routes.find((route): route is SourceRoute => "src" in route && route.dest === "/tree-model.js");
+  assert.ok(legacyModel);
+  assert.ok(new RegExp(legacyModel.src).test("/tree-model.mjs"));
+  const proxy = forwardingRoute(config);
   const match = new RegExp(proxy.src);
   for (const path of [
     "/v1/dashboard",
@@ -98,7 +122,7 @@ test("Vercel build packages the UI, isolates local data, and forwards only API r
   assert.equal(proxy.headers["x-vercel-enable-rewrite-caching"], "0");
   assert.ok(
     config.routes.some((route) =>
-      route.headers?.["Content-Security-Policy"]?.includes("connect-src 'self'"),
+      "src" in route && route.headers?.["Content-Security-Policy"]?.includes("connect-src 'self'"),
     ),
   );
 
@@ -115,8 +139,8 @@ test("proxy authentication stays in request transforms and never enters browser 
   assert.equal(result.status, 0, result.stderr);
   assert.ok(!(result.stdout + result.stderr).includes(token));
   const output = join(root, ".vercel/output");
-  const config = JSON.parse(await readFile(join(output, "config.json"), "utf8"));
-  assert.deepEqual(config.routes.find(route => route.dest).transforms, [{
+  const config = await configuration(output);
+  assert.deepEqual(forwardingRoute(config).transforms, [{
     type: "request.headers", op: "set", target: {key: "x-ironwood-proxy-token"}, args: token,
   }]);
   for (const file of await readdir(join(output, "static"))) {
@@ -133,8 +157,8 @@ test("Vercel can deploy before the API is configured without inventing live data
   for (const origin of [undefined, "", "  "]) {
     const result = build(root, origin);
     assert.equal(result.status, 0, result.stderr);
-    const config = JSON.parse(await readFile(join(output, "config.json"), "utf8"));
-    const fallback = config.routes.find((route) => route.dest);
+    const config = await configuration(output);
+    const fallback = forwardingRoute(config);
     assert.equal(fallback.status, 503);
     assert.equal(fallback.headers["Cache-Control"], "no-store");
     const body = JSON.parse(await readFile(join(output, "static", fallback.dest), "utf8"));
