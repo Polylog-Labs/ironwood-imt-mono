@@ -258,6 +258,14 @@
                 <dt>Block</dt>
                 <dd id="node-block">—</dd>
               </div>
+              <div id="node-tx-row" hidden>
+                <dt>Transaction</dt>
+                <dd id="node-tx">—</dd>
+              </div>
+              <div id="node-action-row" hidden>
+                <dt>Action index</dt>
+                <dd id="node-action">—</dd>
+              </div>
               <div id="node-fill-row" hidden>
                 <dt>Likely fill date</dt>
                 <dd id="node-fill">—</dd>
@@ -304,6 +312,49 @@
         </div>
         <div id="recent-leaves" class="recent-leaves">
           <p class="hint">Waiting for commitments…</p>
+        </div>
+      </section>
+      <section class="about-section" aria-labelledby="about-heading">
+        <h2 id="about-heading" class="eyebrow">ABOUT THIS EXPLORER</h2>
+        <div class="about-grid">
+          <div>
+            <h3>Where the data comes from</h3>
+            <p>Our Rust indexer reads public Zcash chain data from lightwalletd
+              servers. The public provider pool includes Stardust, Cake Wallet,
+              Zec.rocks, and ZcashESP, with automatic failover when a provider
+              is unavailable. The <a href="/v1/providers" target="_blank" rel="noopener">provider status ↗</a>
+              shows which sources are currently selected.</p>
+          </div>
+          <div>
+            <h3>How we build and verify the tree</h3>
+            <p>Starting at Ironwood activation, we append commitments in block,
+              transaction, and action order. We compute the tree with Sinsemilla
+              and compare roots with upstream tree state before saving verified
+              batches in SQLite. The indexer handles chain reorganizations and
+              resumes from its saved checkpoint. It relies on upstream validating
+              nodes for consensus; it is not an independent full node.</p>
+          </div>
+          <div>
+            <h3>What a leaf represents</h3>
+            <p>A leaf is a public note commitment, not a balance or an unspent coin.
+              Spending a note does not remove its commitment. Shielded recipients
+              and note amounts remain private. Select an occupied leaf to see
+              its transaction and zero-based action index. The added time is
+              the containing block's UTC timestamp, not an exact arrival time.</p>
+          </div>
+          <div>
+            <h3>How the view stays live</h3>
+            <p>The browser checks our API every 10 seconds while this tab is
+              visible and loads only the tree region you explore. Mempool values
+              are unconfirmed commitments observed by a provider; they are not
+              yet leaves. Fill dates assume the last 24 hours' absolute growth
+              continues at the same rate.</p>
+          </div>
+        </div>
+        <div class="about-links">
+          <a href="https://github.com/Polylog-Labs/ironwood-imt-mono" target="_blank" rel="noopener noreferrer">Source code ↗</a>
+          <a href="https://zcash.github.io/ironwood/design.html" target="_blank" rel="noopener noreferrer">Ironwood design ↗</a>
+          <a href="https://www.blockgrey.com/zcash" target="_blank" rel="noopener noreferrer">BlockGrey explorer ↗</a>
         </div>
       </section>
       <footer>

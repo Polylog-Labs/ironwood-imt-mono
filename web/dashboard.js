@@ -320,6 +320,9 @@ async function inspect() {
   );
   byId("node-added-row").hidden = !isLeaf || !node.occupied;
   byId("node-block-row").hidden = !isLeaf || !node.occupied;
+  byId("node-tx-row").hidden = true;
+  byId("node-action-row").hidden = true;
+  byId("node-tx").replaceChildren();
   text("node-added", "Loading…");
   text("node-block", "Loading…");
   text("node-hash-label", isLeaf ? "LEAF COMMITMENT" : "NODE HASH");
@@ -369,6 +372,24 @@ async function inspect() {
     if (leaf) {
       text("node-added", time(leaf.time));
       text("node-block", number.format(leaf.height));
+      if (/^[a-f0-9]{64}$/i.test(leaf.txid)) {
+        const mainnet = payload.data.snapshot.network === "main";
+        const source = document.createElement(mainnet ? "a" : "code");
+        source.textContent = `${leaf.txid.slice(0, 10)}…${leaf.txid.slice(-10)}${mainnet ? " ↗" : ""}`;
+        source.title = leaf.txid;
+        if (mainnet) {
+          source.href = `https://www.blockgrey.com/zcash/tx/${leaf.txid}`;
+          source.target = "_blank";
+          source.rel = "noopener noreferrer";
+          source.setAttribute("aria-label", `View transaction ${leaf.txid} on BlockGrey`);
+        }
+        byId("node-tx").append(source);
+        byId("node-tx-row").hidden = false;
+      }
+      if (Number.isSafeInteger(leaf.action_index) && leaf.action_index >= 0) {
+        text("node-action", `${number.format(leaf.action_index)} (zero-based)`);
+        byId("node-action-row").hidden = false;
+      }
     }
   } catch (error) {
     if (version !== selectionVersion) return;
