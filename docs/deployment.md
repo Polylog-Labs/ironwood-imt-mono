@@ -20,18 +20,21 @@ For a small installation, start with 1 shared vCPU, 1 GiB RAM, and 25 GiB SSD. T
 
 Vercel serves the HTML, CSS, and JavaScript and forwards `/v1/*`, `/healthz`, and `/readyz` to your VPS. The sync process and SQLite database remain on the VPS. There are no Vercel Functions or frontend package dependencies.
 
-1. Make the VPS API reachable at a public HTTPS origin, for example `https://api.example.com`. Check that `/healthz` returns JSON and `/v1/dashboard` returns data. `/readyz` returns 503 until chain and mempool observations are current.
-2. Import the repository into Vercel. Set **Root Directory** to the repository root and **Framework Preset** to **Other**.
-3. Add **`IRONWOOD_API_ORIGIN=https://api.example.com`** to the Production and Preview environments you intend to deploy. Use the API origin only, without `/v1`, credentials, query parameters, or a fragment. It must be reachable from Vercel; localhost points to the build/deployment environment, not your VPS.
-4. Leave the build settings supplied by `vercel.json` in place: **Build Command** is `node scripts/build-vercel.mjs`; **Install Command** is empty. Leave **Output Directory** unset. Use Node.js 22 or newer. Deploy when ready.
+1. Import the repository into Vercel. Set **Root Directory** to the repository root and **Framework Preset** to **Other**.
+2. Leave the build settings supplied by `vercel.json` in place: **Build Command** is `node scripts/build-vercel.mjs`; **Install Command** is empty. Leave **Output Directory** unset. Use Node.js 22 or newer. You can deploy now; the UI shows a standby view until the API is available.
+3. Make the VPS API reachable at a public HTTPS origin, for example `https://api.example.com`. Check that `/healthz` returns JSON and `/v1/dashboard` returns data. `/readyz` returns 503 until chain and mempool observations are current.
+4. Add **`IRONWOOD_API_ORIGIN=https://api.example.com`** to the Production and Preview environments you intend to deploy, then redeploy. Use the API origin only, without `/v1`, credentials, query parameters, or a fragment. It must be reachable from Vercel; localhost points to the build/deployment environment, not your VPS.
 
-The build emits `.vercel/output/` using Vercel's [Build Output API](https://vercel.com/docs/build-output-api). It fails with a clear error if the API origin is missing or invalid. Changing the origin requires a new build/deployment. The origin is configuration, not a place for RPC credentials.
+The build emits `.vercel/output/` using Vercel's [Build Output API](https://vercel.com/docs/build-output-api). With no API origin it serves the UI and returns an explicit 503 JSON response for API requests; it does not present fabricated chain data. An invalid configured origin fails the build. Changing the origin requires a new build/deployment. The origin is configuration, not a place for RPC credentials.
 
 Browser requests stay on the UI's origin through Vercel's [external rewrites](https://vercel.com/docs/routing/rewrites), so no browser CORS configuration is needed. API responses bypass caching to preserve freshness and reorg handling. Static assets revalidate because their filenames are not versioned. No database, screenshot, or Rust build artifacts enter the static output.
+
+While the API is unavailable, the explorer shows neutral metric placeholders and a standby panel with automatic and manual retry. Tree controls appear after the first verified snapshot arrives. If the API goes offline later, the last loaded tree and camera remain visible with a UTC snapshot timestamp and a **Last known state** label.
 
 Check the packaging locally, without deploying:
 
 ```sh
+node scripts/build-vercel.mjs # UI only, when IRONWOOD_API_ORIGIN is unset
 IRONWOOD_API_ORIGIN=https://api.example.com node scripts/build-vercel.mjs
 node --test tests/*.mjs
 ```

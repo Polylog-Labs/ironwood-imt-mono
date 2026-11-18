@@ -11,7 +11,26 @@ import {
   zoomAt,
   fillProjection,
   leafFillProjection,
+  syncProgress,
 } from "../web/tree-model.mjs";
+
+test("sync progress measures Ironwood history rather than counting pre-activation blocks", () => {
+  assert.deepEqual(syncProgress(3_428_143, 3_428_142, 3_428_342), {
+    indexed: 0, total: 200, remaining: 200, percent: 0,
+  });
+  assert.deepEqual(syncProgress(3_428_143, 3_428_242, 3_428_342), {
+    indexed: 100, total: 200, remaining: 100, percent: 50,
+  });
+  assert.equal(syncProgress(3_428_143, 3_428_342, 3_428_342).percent, 100);
+  assert.equal(syncProgress(1, 1, 1).percent, 100);
+});
+
+test("sync progress stays unknown for a missing tip or inconsistent heights", () => {
+  for (const heights of [[100, 99, null], [100, 99, undefined], [100, 99, 99],
+    [100, 98, 200], [100, 201, 200], [0, 0, 1], [100, 100.5, 200]]) {
+    assert.equal(syncProgress(...heights), null);
+  }
+});
 
 test("a depth-32 tree has bounded rendering work at every scale and boundary", () => {
   for (const width of [320, 800, 2000])

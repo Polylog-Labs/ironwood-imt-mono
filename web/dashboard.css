@@ -189,6 +189,57 @@ h2 {
   border: 1px solid var(--border);
   background: linear-gradient(125deg, #19201655, #10151055);
 }
+.sync-panel {
+  margin-top: 24px;
+  padding: 16px 20px;
+  border: 1px solid #344743;
+  background: linear-gradient(110deg, #8cdef209, transparent);
+}
+.sync-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font: 11px var(--mono);
+  color: #a9d5d9;
+}
+.sync-heading h2 {
+  font: inherit;
+}
+.sync-panel p {
+  color: #8fa39a;
+  font: 9px/1.8 var(--mono);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+#sync-progress {
+  height: 4px;
+  margin: 12px 0 9px;
+  accent-color: #8cdef2;
+}
+#sync-progress::-webkit-progress-bar {
+  background: #25362f;
+}
+#sync-progress::-webkit-progress-value {
+  background: #8cdef2;
+  transition: width 0.5s ease;
+}
+#sync-progress::-moz-progress-bar {
+  background: #8cdef2;
+}
+#sync-progress:indeterminate::-webkit-progress-bar {
+  background: linear-gradient(90deg, #25362f 30%, #8cdef255 50%, #25362f 70%);
+  background-size: 200% 100%;
+  animation: sync-wait 2.5s linear infinite;
+}
+@keyframes sync-wait {
+  from { background-position: 200% 0; }
+  to { background-position: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #sync-progress:indeterminate::-webkit-progress-bar { animation: none; }
+  #sync-progress::-webkit-progress-value { transition: none; }
+}
 .metric {
   padding: 23px 25px;
   min-width: 0;
@@ -716,6 +767,94 @@ footer a {
 }
 .inspector .inline-error {
   margin: 10px 0;
+}
+.status.offline {
+  color: #9ab8bd;
+}
+.status.offline:before {
+  background: #6b9299;
+  box-shadow: none;
+}
+.tree-waiting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 30px 24px;
+  background: radial-gradient(ellipse at center, #8cdef207, transparent 65%);
+}
+.tree-waiting svg {
+  width: 160px;
+  height: 94px;
+  color: #83a6a2;
+  margin-bottom: 18px;
+}
+.tree-waiting .eyebrow {
+  font: 8px var(--mono);
+  letter-spacing: 2px;
+  color: #78918b;
+  margin: 0 0 12px;
+}
+.tree-waiting h3 {
+  font-size: clamp(21px, 2.5vw, 28px);
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  margin: 0 0 11px;
+}
+.tree-waiting > p:not(.eyebrow) {
+  font: 11px/1.8 var(--mono);
+  color: var(--muted);
+  max-width: 355px;
+  margin: 0 0 22px;
+}
+.tree-waiting button {
+  color: #b6cecb;
+  border-color: #405952;
+  background: #8cdef206;
+  font: 10px var(--mono);
+  padding: 11px 17px;
+}
+.tree-waiting button span {
+  margin-left: 12px;
+}
+.waiting-hint {
+  margin-top: 13px;
+  font: 8px var(--mono);
+  color: #82938c;
+}
+[data-has-snapshot="false"] .explorer-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+[data-has-snapshot="false"] .tree-stage {
+  height: 400px;
+}
+[data-has-snapshot="false"] .inspector,
+[data-has-snapshot="false"] .explorer-toolbar,
+[data-has-snapshot="false"] .canvas-meta,
+[data-has-snapshot="false"] .canvas-bottom,
+[data-has-snapshot="false"] .recent-section {
+  display: none;
+}
+[data-has-snapshot="false"] #tree-canvas,
+[data-has-snapshot="false"] #capacity-bar,
+[data-has-snapshot="false"] .legend {
+  visibility: hidden;
+}
+[data-has-snapshot="false"] .value,
+[data-has-snapshot="false"] .root-strip code {
+  color: #748270;
+}
+body:not([data-connection="online"]) .live-dot {
+  background: #62756c;
+  box-shadow: none;
+}
+[data-connection="stale"] #error {
+  border-color: #374b45;
+  background: #8cdef208;
+  color: #b3c8c0;
 }
 @media (min-width: 1500px) {
   .tree-stage {

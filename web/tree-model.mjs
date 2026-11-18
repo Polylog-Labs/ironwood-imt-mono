@@ -6,6 +6,25 @@ export const MAX_ZOOM = 31;
 export const EMPTY_LEAF = "02" + "00".repeat(31);
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+// Indexing starts at Ironwood activation, not at genesis. The baseline has zero work done.
+export function syncProgress(startHeight, indexedHeight, targetHeight) {
+  if (
+    ![startHeight, indexedHeight, targetHeight].every(Number.isSafeInteger) ||
+    startHeight < 1 ||
+    indexedHeight < startHeight - 1 ||
+    targetHeight < startHeight ||
+    indexedHeight > targetHeight
+  ) return null;
+  const total = targetHeight - startHeight + 1;
+  const indexed = indexedHeight - startHeight + 1;
+  return {
+    indexed,
+    total,
+    remaining: total - indexed,
+    percent: (indexed / total) * 100,
+  };
+}
+
 export function camera(center, zoom, panY = 0) {
   zoom = clamp(zoom, 0, MAX_ZOOM);
   const half = CAPACITY / 2 ** zoom / 2;

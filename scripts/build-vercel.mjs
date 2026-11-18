@@ -4,27 +4,26 @@ import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 const root = new URL("../", import.meta.url);
 const output = new URL(".vercel/output/", root);
 const value = process.env.IRONWOOD_API_ORIGIN?.trim();
-let api;
-try {
-  api = new URL(value);
-} catch {
-  console.error(
-    "Set IRONWOOD_API_ORIGIN to the public HTTPS origin of the Rust API.",
-  );
-  process.exit(1);
-}
-if (
-  api.protocol !== "https:" ||
-  api.username ||
-  api.password ||
-  api.pathname !== "/" ||
-  api.search ||
-  api.hash
-) {
-  console.error(
-    "IRONWOOD_API_ORIGIN must be an HTTPS origin without credentials, a path, query, or fragment.",
-  );
-  process.exit(1);
+let api = null;
+if (value) {
+  try {
+    api = new URL(value);
+    if (
+      api.protocol !== "https:" ||
+      api.username ||
+      api.password ||
+      api.pathname !== "/" ||
+      api.search ||
+      api.hash
+    ) {
+      throw new Error("invalid origin");
+    }
+  } catch {
+    console.error(
+      "IRONWOOD_API_ORIGIN must be an HTTPS origin without credentials, a path, query, or fragment.",
+    );
+    process.exit(1);
+  }
 }
 
 const config = {
@@ -42,7 +41,9 @@ const config = {
     },
     {
       src: "^/(v1(?:/.*)?|healthz|readyz)$",
-      dest: `${api.origin}/$1`,
+      ...(api
+        ? { dest: `${api.origin}/$1` }
+        : { dest: "/api-unavailable.json", status: 503 }),
       headers: {
         "Cache-Control": "no-store",
         "CDN-Cache-Control": "no-store",
@@ -71,11 +72,24 @@ for (const file of [
   "dashboard.js",
   "tree.js",
   "tree-model.mjs",
+  "favicon.svg",
+  "apple-touch-icon.png",
+  "share.png",
 ]) {
   await copyFile(new URL(`web/${file}`, root), new URL(`static/${file}`, output));
+}
+if (!api) {
+  await writeFile(
+    new URL("static/api-unavailable.json", output),
+    `${JSON.stringify({ error: "api_not_configured" })}\n`,
+  );
 }
 await writeFile(
   new URL("config.json", output),
   `${JSON.stringify(config, null, 2)}\n`,
 );
-console.log("Built Vercel static UI with same-origin API forwarding.");
+console.log(
+  api
+    ? "Built Vercel static UI with same-origin API forwarding."
+    : "Built Vercel UI without live data. Set IRONWOOD_API_ORIGIN and redeploy to connect the indexer.",
+);

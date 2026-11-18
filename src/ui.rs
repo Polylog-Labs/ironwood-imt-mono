@@ -7,7 +7,7 @@ use axum::{
     routing::get,
 };
 
-fn asset(content_type: &'static str, content: &'static str) -> Response {
+fn asset(content_type: &'static str, content: impl IntoResponse) -> Response {
     ([
         (header::CONTENT_TYPE, content_type),
         (header::CACHE_CONTROL, "no-cache"),
@@ -18,6 +18,23 @@ fn asset(content_type: &'static str, content: &'static str) -> Response {
 
 pub(crate) fn routes() -> Router<AppState> {
     Router::new()
+        .route(
+            "/favicon.svg",
+            get(|| async { asset("image/svg+xml", include_str!("../web/favicon.svg")) }),
+        )
+        .route(
+            "/apple-touch-icon.png",
+            get(|| async {
+                asset(
+                    "image/png",
+                    include_bytes!("../web/apple-touch-icon.png").as_slice(),
+                )
+            }),
+        )
+        .route(
+            "/share.png",
+            get(|| async { asset("image/png", include_bytes!("../web/share.png").as_slice()) }),
+        )
         .route(
             "/",
             get(|| async {

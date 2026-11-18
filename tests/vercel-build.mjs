@@ -94,11 +94,27 @@ test("Vercel build packages the UI, isolates local data, and forwards only API r
   assert.deepEqual(await readdir(join(output, "static")), assets);
 });
 
-test("Vercel build rejects missing or invalid origins without logging credentials", async (t) => {
+test("Vercel can deploy before the API is configured without inventing live data", async (t) => {
+  const root = await fixture(t);
+  const output = join(root, ".vercel/output");
+  for (const origin of [undefined, "", "  "]) {
+    const result = build(root, origin);
+    assert.equal(result.status, 0, result.stderr);
+    const config = JSON.parse(await readFile(join(output, "config.json"), "utf8"));
+    const fallback = config.routes.find((route) => route.dest);
+    assert.equal(fallback.status, 503);
+    assert.equal(fallback.headers["Cache-Control"], "no-store");
+    const body = JSON.parse(await readFile(join(output, "static", fallback.dest), "utf8"));
+    assert.deepEqual(body, { error: "api_not_configured" });
+    assert.ok((await readdir(join(output, "static"))).includes("index.html"));
+  }
+  assert.equal(build(root, "https://api.example.com").status, 0);
+  assert.ok(!(await readdir(join(output, "static"))).includes("api-unavailable.json"));
+});
+
+test("Vercel build rejects invalid origins without logging credentials", async (t) => {
   const root = await fixture(t);
   for (const origin of [
-    undefined,
-    "",
     "not a URL",
     "http://api.example.com",
     "https://user:private-password@api.example.com",

@@ -6,14 +6,27 @@
     <meta name="color-scheme" content="dark" />
     <meta
       name="description"
-      content="Explore the Ironwood note-commitment tree. Live, verified chain data, from the root to every leaf."
+      content="Explore Zcash's Ironwood note commitment tree. Follow live growth, inspect commitments, and trace the latest leaf."
     />
-    <title>Ironwood — Tree explorer</title>
-    <link rel="icon" href="data:," />
+    <title>Zcash Ironwood Note Commitment Visualizer</title>
+    <link rel="canonical" href="https://ironwood-imt-mono.vercel.app/" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ironwood" />
+    <meta property="og:title" content="Zcash Ironwood Note Commitment Visualizer" />
+    <meta property="og:description" content="Explore Zcash's Ironwood note commitment tree. Follow live growth, inspect commitments, and trace the latest leaf." />
+    <meta property="og:url" content="https://ironwood-imt-mono.vercel.app/" />
+    <meta property="og:image" content="https://ironwood-imt-mono.vercel.app/share.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zcash Ironwood Note Commitment Visualizer, with a Merkle tree and the latest leaf path in blue." />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="/dashboard.css" />
     <script src="/dashboard.js" type="module"></script>
   </head>
-  <body>
+  <body data-has-snapshot="false" data-connection="loading">
     <main>
       <header class="page-header">
         <a class="brand" href="/" aria-label="Ironwood home">
@@ -55,7 +68,16 @@
         </div>
       </header>
 
-      <p id="error" class="notice" role="alert" hidden></p>
+      <section class="sync-panel" id="sync-panel" aria-labelledby="sync-title">
+        <div class="sync-heading">
+          <h2 id="sync-title">API sync</h2>
+          <span id="sync-percent">Connecting…</span>
+        </div>
+        <progress id="sync-progress" max="100" aria-label="Ironwood history indexed"></progress>
+        <p id="sync-detail">Waiting for the API to report progress.</p>
+      </section>
+
+      <p id="error" class="notice" role="status" hidden></p>
       <noscript
         ><p class="notice">
           Enable JavaScript to explore the live tree.
@@ -72,12 +94,12 @@
             value="0"
             aria-label="Tree capacity used"
           ></progress>
-          <p class="detail" id="leaf-count">Connecting to the tree</p>
+          <p class="detail" id="leaf-count">4,294,967,296 possible leaves</p>
         </article>
         <article class="metric">
           <h2>GROWTH / 24H</h2>
           <p class="value" id="growth">—</p>
-          <p class="detail" id="growth-detail">Waiting for a baseline</p>
+          <p class="detail" id="growth-detail">Awaiting chain activity</p>
           <p class="hint" id="growth-window">Rolling 24-hour window</p>
         </article>
         <article class="metric">
@@ -90,15 +112,16 @@
           <h2>MEMPOOL</h2>
           <p class="value" id="mempool">—</p>
           <p class="detail">Pending commitments</p>
-          <p class="hint" id="mempool-time">Not yet in the tree</p>
+          <p class="hint" id="mempool-time">Awaiting observation</p>
         </article>
       </section>
 
       <section class="root-strip" aria-label="Current tree root">
         <div class="root-label">
-          <span class="mini-diamond"></span> CURRENT ROOT
+          <span class="mini-diamond"></span>
+          <span id="root-label">CURRENT ROOT</span>
         </div>
-        <code id="root">Waiting for verified data…</code>
+        <code id="root">Available after connection</code>
       </section>
 
       <section class="explorer" aria-labelledby="tree-heading">
@@ -114,7 +137,7 @@
             ><span class="legend-depth">32 LEVELS</span>
           </div>
         </div>
-        <div class="explorer-toolbar">
+        <div class="explorer-toolbar" id="explorer-toolbar" inert>
           <div class="view-buttons" role="group" aria-label="Tree views">
             <button id="view-whole" type="button">Whole tree</button
             ><button id="view-active" type="button" class="active">
@@ -146,6 +169,7 @@
             </div>
             <canvas
               id="tree-canvas"
+              inert
               tabindex="0"
               role="img"
               aria-label="Interactive Ironwood tree. Drag, scroll horizontally, or Shift-scroll to pan. Scroll vertically or pinch to zoom. Use plus and minus to zoom, arrow keys to pan, and Home for the whole tree. Select a node to inspect it."
@@ -153,6 +177,18 @@
               >Use the leaf-index search and recent leaf buttons to inspect
               commitments.</canvas
             >
+            <div id="tree-waiting" class="tree-waiting" role="status">
+              <svg viewBox="0 0 200 116" fill="none" aria-hidden="true">
+                <path d="M100 16v22M100 38H52v24M100 38h48v24M52 70v15H24v18M52 85h28v18M148 70v15h-28v18M148 85h28v18" stroke="currentColor" />
+                <circle cx="100" cy="12" r="4" fill="currentColor" />
+                <path d="m52 61 5 5-5 5-5-5Zm96 0 5 5-5 5-5-5ZM21 103h6v6h-6Zm56 0h6v6h-6Zm40 0h6v6h-6Zm56 0h6v6h-6Z" stroke="currentColor" />
+              </svg>
+              <p class="eyebrow">IRONWOOD / STANDBY</p>
+              <h3 id="waiting-title">Connecting to the tree</h3>
+              <p id="waiting-detail">Your view will appear when verified chain data arrives.</p>
+              <button id="retry-connection" type="button">Retry connection <span aria-hidden="true">↻</span></button>
+              <span class="waiting-hint">Automatic reconnect enabled</span>
+            </div>
             <div id="tree-tooltip" class="tree-tooltip" hidden></div>
             <div class="canvas-bottom">
               <div>

@@ -154,6 +154,10 @@ export class TreeView {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.width, this.height);
+    if (!this.snapshot) {
+      this.hits = [];
+      return;
+    }
     const frame = layout(this.view, this.width, this.height, this.count);
     this.frame = frame;
     const bottom = this.width < 440 ? this.height - 125 : this.height - 85;

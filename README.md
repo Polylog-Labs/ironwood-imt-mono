@@ -54,7 +54,7 @@ See the [architecture and API reference](docs/architecture.md) for routes, pagin
 
 **Single VPS:** run the Rust binary with SQLite on persistent local disk behind an HTTPS reverse proxy. The same process can serve the UI. Start with 1 vCPU, 1 GiB RAM, and 25 GiB SSD for a small installation; build the release binary off the VPS and monitor actual resource use.
 
-**Vercel UI + VPS API:** import this repository into Vercel with the repository root as the project root, and set `IRONWOOD_API_ORIGIN` to the public HTTPS origin of the Rust API, such as `https://api.example.com`. The checked-in configuration builds the static UI and forwards API requests to that origin. The indexer and SQLite stay on the VPS.
+**Vercel UI + VPS API:** import this repository into Vercel with the repository root as the project root. The UI can deploy before the backend is ready and shows a standby view. Set `IRONWOOD_API_ORIGIN` to the Rust API's public HTTPS origin, such as `https://api.example.com`, and redeploy to enable live data. The indexer and SQLite stay on the VPS.
 
 See [deployment instructions](docs/deployment.md) for Vercel settings, a local build check, and storage/backups.
 

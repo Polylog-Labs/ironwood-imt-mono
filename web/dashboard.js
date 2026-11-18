@@ -6,6 +6,7 @@ import {
   nodeInfo,
   fillProjection,
   leafFillProjection,
+  syncProgress,
 } from "./tree-model.mjs";
 
 const number = new Intl.NumberFormat("en-US");
@@ -62,12 +63,50 @@ function status(label, kind = "") {
   byId("status").className = `status ${kind}`;
 }
 
+function renderSync(next, unavailable = false) {
+  const panel = byId("sync-panel");
+  panel.hidden = next?.ready === true;
+  if (panel.hidden) return;
+  const snapshot = next?.data.snapshot;
+  const progress = syncProgress(
+    snapshot?.start_height,
+    snapshot?.checkpoint.height,
+    next?.sync.node_height,
+  );
+  const bar = byId("sync-progress");
+  if (progress) {
+    bar.value = progress.percent;
+    // Keep 100% reserved for completion, even with only one block remaining.
+    text("sync-percent", `${Math.min(progress.percent, progress.remaining ? 99.99 : 100).toFixed(2)}%`);
+    text("sync-detail", unavailable
+      ? `Last reported at ${time(next.observed_at)} · reconnecting automatically`
+      : `${number.format(progress.indexed)} / ${number.format(progress.total)} Ironwood blocks · ${number.format(progress.remaining)} remaining · block ${number.format(snapshot.checkpoint.height)} / ${number.format(next.sync.node_height)}`);
+  } else {
+    bar.removeAttribute("value");
+    text("sync-percent", unavailable ? "Waiting" : "Connecting…");
+    text("sync-detail", unavailable
+      ? "Waiting for the API to report progress. Reconnecting automatically."
+      : "Discovering the upstream chain tip.");
+  }
+  text("sync-title", unavailable ? "Sync status unavailable"
+    : next?.sync.failed ? "Sync retrying"
+    : progress?.remaining === 0 ? "Verifying latest chain state"
+    : next ? "API syncing" : "API sync");
+}
+
 function render(next) {
   const previousHash = payload?.data.snapshot.checkpoint.hash;
   payload = next;
   const { data, mempool, sync } = payload;
   const tip = data.snapshot.checkpoint;
   const growth = data.growth_24h;
+  renderSync(next);
+  document.body.dataset.hasSnapshot = "true";
+  document.body.dataset.connection = "online";
+  byId("tree-waiting").hidden = true;
+  byId("explorer-toolbar").inert = false;
+  byId("tree-canvas").inert = false;
+  text("root-label", "CURRENT ROOT");
   text(
     "network",
     data.snapshot.network === "main"
@@ -144,7 +183,7 @@ function render(next) {
   );
   if (payload.ready) status("Synced", "live");
   else if (sync.failed) status("Sync retrying", "warning");
-  else if (!payload.caught_up) status("Catching up", "warning");
+  else if (!payload.caught_up) status("API syncing", "warning");
   else status("Awaiting fresh data", "warning");
   byId("error").hidden = true;
   tree.setSnapshot(data.snapshot, data.latest_leaves);
@@ -359,28 +398,49 @@ async function read(url, signal) {
 }
 
 async function refresh() {
-  if (inFlight) return;
+  if (inFlight || document.hidden) return;
   clearTimeout(timer);
   inFlight = true;
   byId("refresh").disabled = true;
+  byId("retry-connection").disabled = true;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     render(await read("/v1/dashboard", controller.signal));
+    return true;
   } catch {
-    status("Connection lost", "warning");
-    text(
-      "error",
-      payload
-        ? `Connection lost. Showing the snapshot from ${time(payload.observed_at)}. Retrying automatically.`
-        : "Cannot reach the local indexer. Retrying automatically.",
-    );
-    byId("error").hidden = false;
+    renderSync(payload, true);
+    document.body.dataset.connection = payload ? "stale" : "offline";
+    status(payload ? "Last known state" : "On standby", "offline");
+    if (payload) {
+      text("root-label", "LAST VERIFIED ROOT");
+      text(
+        "error",
+        `Live updates paused. Showing the verified snapshot from ${time(payload.observed_at)}. Reconnecting automatically.`,
+      );
+      text(
+        "mempool-time",
+        payload.mempool.observed_at === null
+          ? "No previous observation"
+          : `Last observed ${time(payload.mempool.observed_at)}`,
+      );
+      byId("error").hidden = false;
+    } else {
+      text("waiting-title", "Awaiting chain data");
+      text(
+        "waiting-detail",
+        "Live data is temporarily unavailable. This view will reconnect automatically.",
+      );
+      text("updated", "Waiting for connection");
+      byId("error").hidden = true;
+    }
+    return false;
   } finally {
     clearTimeout(timeout);
     inFlight = false;
     byId("refresh").disabled = false;
-    timer = setTimeout(refresh, 10_000);
+    byId("retry-connection").disabled = false;
+    if (!document.hidden) timer = setTimeout(refresh, 10_000);
   }
 }
 
@@ -428,11 +488,13 @@ byId("leaf-search").addEventListener("submit", (event) => {
   tree.goLeaf(index);
   byId("tree-canvas").focus({ preventScroll: true });
 });
-byId("refresh").addEventListener("click", async () => {
-  await refresh();
-  if (payload) inspect();
-});
+async function retry() {
+  if (await refresh()) inspect();
+}
+byId("refresh").addEventListener("click", retry);
+byId("retry-connection").addEventListener("click", retry);
 document.addEventListener("visibilitychange", () => {
+  clearTimeout(timer);
   if (!document.hidden) refresh();
 });
 refresh();
