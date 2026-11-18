@@ -22,7 +22,7 @@ cargo build --release --locked
 ./target/release/ironwood-indexer --public-rpc
 ```
 
-Open **http://localhost:3000**. The API starts while history syncs; stop with Ctrl-C and rerun to resume. The dashboard refreshes every 10 seconds.
+Open **http://localhost:3000/ironwood**. The API starts while history syncs; stop with Ctrl-C and rerun to resume. The dashboard refreshes every 10 seconds.
 
 The public mainnet preset uses Stardust, Cake Wallet, Zec.rocks, and ZcashESP lightwalletd providers. No local Zcash node or API key is required. SQLite and the protobuf compiler are bundled; the embedded UI needs no Node runtime.
 

@@ -1,3 +1,4 @@
+pub use crate::rate_limit::ProxyConfig;
 use crate::{
     mempool::SharedMempool,
     model::{Bytes32, unix_time},
@@ -45,6 +46,10 @@ impl IntoResponse for ApiError {
     }
 }
 pub fn router(state: AppState) -> Router {
+    router_with_proxy(state, ProxyConfig::default())
+}
+
+pub fn router_with_proxy(state: AppState, proxy: ProxyConfig) -> Router {
     Router::new()
         .route("/v1/dashboard", get(dashboard))
         .route("/healthz", get(|| async { Json(json!({"status":"ok"})) }))
@@ -58,7 +63,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/tree/nodes/{level}/{index}", get(node))
         .route("/v1/mempool", get(mempool))
         .route_layer(middleware::from_fn_with_state(
-            crate::rate_limit::RateLimiter::default(),
+            crate::rate_limit::RateLimiter::new(proxy),
             crate::rate_limit::check,
         ))
         .merge(crate::ui::routes())

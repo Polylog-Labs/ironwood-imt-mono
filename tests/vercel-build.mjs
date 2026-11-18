@@ -25,10 +25,12 @@ async function fixture(t) {
   return root;
 }
 
-function build(root, origin) {
+function build(root, origin, token) {
   const env = { ...process.env };
   delete env.IRONWOOD_API_ORIGIN;
+  delete env.IRONWOOD_PROXY_TOKEN;
   if (origin !== undefined) env.IRONWOOD_API_ORIGIN = origin;
+  if (token !== undefined) env.IRONWOOD_PROXY_TOKEN = token;
   return spawnSync(process.execPath, ["scripts/build-vercel.mjs"], {
     cwd: root,
     env,
@@ -58,6 +60,11 @@ test("Vercel build packages the UI, isolates local data, and forwards only API r
     await readFile(join(output, "config.json"), "utf8"),
   );
   assert.equal(config.version, 3);
+  const explorer = config.routes.find(route => route.dest === "/ironwood.html");
+  assert.ok(new RegExp(explorer.src).test("/ironwood"));
+  assert.ok(new RegExp(explorer.src).test("/ironwood/"));
+  assert.ok(!new RegExp(explorer.src).test("/ironwood-extra"));
+  assert.match(await readFile(join(output, "static/index.html"), "utf8"), /href="\/ironwood"/);
   assert.match(config.overrides["tree-model.mjs"].contentType, /javascript/);
   const proxy = config.routes.find((route) => route.dest);
   const match = new RegExp(proxy.src);
@@ -92,6 +99,25 @@ test("Vercel build packages the UI, isolates local data, and forwards only API r
   await writeFile(join(output, "static/obsolete.js"), "obsolete");
   assert.equal(build(root, "https://next.example.com").status, 0);
   assert.deepEqual(await readdir(join(output, "static")), assets);
+});
+
+test("proxy authentication stays in request transforms and never enters browser assets or logs", async (t) => {
+  const root = await fixture(t);
+  const token = "test-only-proxy-secret-32-characters";
+  const result = build(root, "https://api.example.com", token);
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(!(result.stdout + result.stderr).includes(token));
+  const output = join(root, ".vercel/output");
+  const config = JSON.parse(await readFile(join(output, "config.json"), "utf8"));
+  assert.deepEqual(config.routes.find(route => route.dest).transforms, [{
+    type: "request.headers", op: "set", target: {key: "x-ironwood-proxy-token"}, args: token,
+  }]);
+  for (const file of await readdir(join(output, "static"))) {
+    assert.ok(!(await readFile(join(output, "static", file))).includes(Buffer.from(token)));
+  }
+  const invalid = build(root, "https://api.example.com", "short-secret");
+  assert.notEqual(invalid.status, 0);
+  assert.ok(!(invalid.stdout + invalid.stderr).includes("short-secret"));
 });
 
 test("Vercel can deploy before the API is configured without inventing live data", async (t) => {

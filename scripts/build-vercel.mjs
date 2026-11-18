@@ -4,6 +4,11 @@ import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 const root = new URL("../", import.meta.url);
 const output = new URL(".vercel/output/", root);
 const value = process.env.IRONWOOD_API_ORIGIN?.trim();
+const proxyToken = process.env.IRONWOOD_PROXY_TOKEN;
+if (proxyToken !== undefined && !/^[A-Za-z0-9_-]{32,}$/.test(proxyToken)) {
+  console.error("IRONWOOD_PROXY_TOKEN must contain at least 32 ASCII letters, digits, hyphens or underscores.");
+  process.exit(1);
+}
 let api = null;
 if (value) {
   try {
@@ -44,6 +49,14 @@ const config = {
       ...(api
         ? { dest: `${api.origin}/$1` }
         : { dest: "/api-unavailable.json", status: 503 }),
+      ...(api && proxyToken ? {
+        transforms: [{
+          type: "request.headers",
+          op: "set",
+          target: { key: "x-ironwood-proxy-token" },
+          args: proxyToken,
+        }],
+      } : {}),
       headers: {
         "Cache-Control": "no-store",
         "CDN-Cache-Control": "no-store",
@@ -56,6 +69,7 @@ const config = {
       headers: { "Cache-Control": "no-cache" },
       continue: true,
     },
+    { src: "^/ironwood/?$", dest: "/ironwood.html" },
     { handle: "filesystem" },
   ],
   overrides: {
@@ -68,6 +82,7 @@ await rm(output, { recursive: true, force: true });
 await mkdir(new URL("static/", output), { recursive: true });
 for (const file of [
   "index.html",
+  "ironwood.html",
   "dashboard.css",
   "dashboard.js",
   "tree.js",

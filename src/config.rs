@@ -1,5 +1,8 @@
 use clap::Parser;
-use std::{net::SocketAddr, path::PathBuf};
+use std::{
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+};
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -31,6 +34,12 @@ pub struct Config {
     pub database: PathBuf,
     #[arg(long, env = "IRONWOOD_BIND", default_value = "127.0.0.1:3000")]
     pub bind: SocketAddr,
+    /// Exact proxy IPs allowed to supply an overwritten X-Real-IP header.
+    #[arg(long, env = "IRONWOOD_TRUSTED_PROXIES", value_delimiter = ',')]
+    pub trusted_proxy: Vec<IpAddr>,
+    /// Shared secret for Vercel's authenticated client-IP forwarding (32+ characters).
+    #[arg(long, env = "IRONWOOD_PROXY_TOKEN", hide_env_values = true, value_parser = proxy_token)]
+    pub proxy_token: Option<String>,
     /// Required expected network: main, test, or regtest.
     #[arg(long, env = "ZCASH_NETWORK", default_value = "main", value_parser = ["main", "test", "regtest"])]
     pub network: String,
@@ -46,4 +55,16 @@ pub struct Config {
     /// Finish a catch-up pass and a mempool sample, then exit without serving HTTP.
     #[arg(long)]
     pub once: bool,
+}
+
+fn proxy_token(value: &str) -> Result<String, &'static str> {
+    if value.len() >= 32
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        Ok(value.to_owned())
+    } else {
+        Err("proxy token must contain at least 32 ASCII letters, digits, hyphens or underscores")
+    }
 }

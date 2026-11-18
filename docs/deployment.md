@@ -12,9 +12,9 @@ Keep one Rust process and its SQLite database on persistent local disk. Use remo
   --bind 127.0.0.1:3000
 ```
 
-Create the database directory and give the service user write access. Run under a process supervisor, with an HTTPS reverse proxy forwarding requests to port 3000. Serve the embedded UI from `/`, or use Vercel for the UI below.
+Create the database directory and give the service user write access. Run under a process supervisor, with an HTTPS reverse proxy forwarding requests to port 3000. The embedded UI serves a coming-soon page at `/` and the explorer at `/ironwood`, or use Vercel for the UI below.
 
-For a small installation, start with 1 shared vCPU, 1 GiB RAM, and 25 GiB SSD. This is a starting allocation, not a measured capacity guarantee. At the default 10-second refresh, 25 open dashboards generate about 2.5 dashboard requests/second, plus exploration requests. UI requests read SQLite rather than making upstream RPC calls.
+For a small installation, start with 1 shared vCPU, 1 GiB RAM, and 25 GiB SSD. This is a starting allocation, not a measured capacity guarantee. At the default 10-second refresh, 100 open dashboards generate about 10 dashboard requests/second, plus exploration requests. Each visitor has an independent rate allowance. UI requests read SQLite rather than making upstream RPC calls.
 
 ## Deploy the UI on Vercel
 
@@ -31,7 +31,7 @@ Browser requests stay on the UI's origin through Vercel's [external rewrites](ht
 
 While the API is unavailable, the explorer shows neutral metric placeholders and a standby panel with automatic and manual retry. Tree controls appear after the first verified snapshot arrives. If the API goes offline later, the last loaded tree and camera remain visible with a UTC snapshot timestamp and a **Last known state** label.
 
-The Rust API includes a 20-request/second limiter with a 240-request burst per connection IP. Behind a reverse proxy, clients share the proxy's bucket; forwarded IP headers are not trusted. Deploy the updated Rust binary to enable it. Publishing the UI to Vercel does not update the API process. See the [API reference](architecture.md#http-api) for details.
+The Rust API includes a 20-request/second limiter with a 240-request burst per client IP. Configure proxy identity as described below and deploy the updated Rust binary to enable it. Publishing the UI to Vercel does not update the API process.
 
 Check the packaging locally, without deploying:
 
@@ -41,7 +41,21 @@ IRONWOOD_API_ORIGIN=https://api.example.com node scripts/build-vercel.mjs
 node --test tests/*.mjs
 ```
 
-This verifies the artifact and configuration; it does not check connectivity to the configured origin. After deployment, check `/v1/dashboard` through the Vercel URL, then open the explorer and select **Latest leaf** to verify snapshot queries and leaf inspection.
+This verifies the artifact and configuration; it does not check connectivity to the configured origin. After deployment, check `/v1/dashboard` through the Vercel URL, then open `/ironwood` and select **Latest leaf** to verify snapshot queries and leaf inspection.
+
+## Per-client rate limiting
+
+For **Vercel → Nginx → Rust**, generate a random secret with `openssl rand -hex 32`. Set the same `IRONWOOD_PROXY_TOKEN` in the Rust service environment and in Vercel's Production environment (and Preview if needed), then restart the backend and redeploy the UI. The build puts it in a server-side **request** header transform for API rewrites only; it is never included in browser assets or response headers. Vercel overwrites `X-Vercel-Forwarded-For` with the visitor's IP, and Rust trusts it only when the token matches. Keep Nginx's default request-header forwarding enabled and do not log the token header. This requires no Vercel Functions.
+
+For **direct clients → Nginx → Rust**, set `IRONWOOD_TRUSTED_PROXIES=127.0.0.1,::1` on Rust and add the following to Nginx's API proxy location:
+
+```nginx
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+Trust only exact proxy connection IPs you control and ensure they **overwrite** this header. Configure both mechanisms when the API accepts direct callers and Vercel traffic. Authenticated Vercel identity takes precedence; direct callers use the IP set by Nginx. Do not trust arbitrary `X-Forwarded-For` or enable proxy trust without configuring the proxy. Without proxy configuration Rust uses the connection IP, which combines visitors behind that proxy. Users sharing a public IP share a bucket; this anonymous API has no account identity.
+
+References: [Vercel request headers](https://vercel.com/docs/headers/request-headers), [request transforms](https://vercel.com/docs/build-output-api/configuration#source-route-transforms).
 
 ## Storage and operations
 

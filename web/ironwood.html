@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Explore Zcash's Ironwood note commitment tree. Follow live growth, inspect commitments, and trace the latest leaf."
+    />
+    <title>Zcash Ironwood Note Commitment Visualizer</title>
+    <link rel="canonical" href="https://www.zcashanalytics.com/ironwood" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ironwood" />
+    <meta property="og:title" content="Zcash Ironwood Note Commitment Visualizer" />
+    <meta property="og:description" content="Explore Zcash's Ironwood note commitment tree. Follow live growth, inspect commitments, and trace the latest leaf." />
+    <meta property="og:url" content="https://www.zcashanalytics.com/ironwood" />
+    <meta property="og:image" content="https://www.zcashanalytics.com/share.png?v=2" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Zcash Ironwood Note Commitment Visualizer, with a Merkle tree and the latest leaf path in blue." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Zcash Ironwood Note Commitment Visualizer" />
+    <meta name="twitter:description" content="Explore Zcash's Ironwood note commitment tree. Follow live growth, inspect commitments, and trace the latest leaf." />
+    <meta name="twitter:image" content="https://www.zcashanalytics.com/share.png?v=2" />
+    <meta name="twitter:image:alt" content="Zcash Ironwood Note Commitment Visualizer, with a Merkle tree and the latest leaf path in blue." />
+    <link rel="stylesheet" href="/dashboard.css" />
+    <script src="/dashboard.js" type="module"></script>
+  </head>
+  <body data-has-snapshot="false" data-connection="loading">
+    <main>
+      <header class="page-header">
+        <a class="brand" href="/ironwood" aria-label="Ironwood home">
+          <svg
+            class="brand-mark"
+            viewBox="0 0 40 44"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M20 7v6M9 19v-6h22v6M9 23v7M3 36v-6h12v6M31 23v7M25 36v-6h12v6"
+              stroke="currentColor"
+              stroke-width="1.5"
+            />
+            <circle cx="20" cy="4" r="3" fill="currentColor" />
+            <circle cx="9" cy="21" r="2" fill="currentColor" />
+            <circle cx="31" cy="21" r="2" fill="currentColor" />
+            <path
+              d="M1 36h4v4H1ZM13 36h4v4h-4ZM23 36h4v4h-4ZM35 36h4v4h-4Z"
+              fill="currentColor"
+            />
+          </svg>
+          <span>ironwood<span class="brand-sub">TREE EXPLORER</span></span>
+        </a>
+        <div class="header-right">
+          <span class="network"
+            ><span class="cross">＋</span>
+            <span id="network">MAINNET</span></span
+          ><span id="status" class="status" role="status">Connecting</span
+          ><button
+            id="refresh"
+            class="icon-button"
+            type="button"
+            aria-label="Refresh data"
+            title="Refresh data"
+          >
+            ↻
+          </button>
+        </div>
+      </header>
+
+      <section class="sync-panel" id="sync-panel" aria-labelledby="sync-title">
+        <div class="sync-heading">
+          <h2 id="sync-title">API sync</h2>
+          <span id="sync-percent">Connecting…</span>
+        </div>
+        <progress id="sync-progress" max="100" aria-label="Ironwood history indexed"></progress>
+        <p id="sync-detail">Waiting for the API to report progress.</p>
+      </section>
+
+      <p id="error" class="notice" role="status" hidden></p>
+      <noscript
+        ><p class="notice">
+          Enable JavaScript to explore the live tree.
+        </p></noscript
+      >
+
+      <section class="metrics" aria-label="Live tree statistics">
+        <article class="metric usage-metric">
+          <h2>CAPACITY USED</h2>
+          <p class="value accent" id="usage">—</p>
+          <progress
+            id="capacity-bar"
+            max="100"
+            value="0"
+            aria-label="Tree capacity used"
+          ></progress>
+          <p class="detail" id="leaf-count">4,294,967,296 possible leaves</p>
+        </article>
+        <article class="metric">
+          <h2>GROWTH / 24H</h2>
+          <p class="value" id="growth">—</p>
+          <p class="detail" id="growth-detail">Awaiting chain activity</p>
+          <p class="hint" id="growth-window">Rolling 24-hour window</p>
+        </article>
+        <article class="metric">
+          <h2>ESTIMATED FILL DATE</h2>
+          <p class="value date-value" id="fill-date">—</p>
+          <p class="detail" id="fill-detail">Based on the last 24 hours</p>
+          <p class="hint">Constant daily additions · not a prediction</p>
+        </article>
+        <article class="metric">
+          <h2>MEMPOOL</h2>
+          <p class="value" id="mempool">—</p>
+          <p class="detail">Pending commitments</p>
+          <p class="hint" id="mempool-time">Awaiting observation</p>
+        </article>
+      </section>
+
+      <section class="root-strip" aria-label="Current tree root">
+        <div class="root-label">
+          <span class="mini-diamond"></span>
+          <span id="root-label">CURRENT ROOT</span>
+        </div>
+        <code id="root">Available after connection</code>
+      </section>
+
+      <section class="explorer" aria-labelledby="tree-heading">
+        <div class="explorer-header">
+          <div class="tree-title">
+            <span class="section-number">[ 01 — 32 ]</span>
+            <h2 id="tree-heading">The commitment tree</h2>
+          </div>
+          <div class="legend">
+            <span><i class="occupied-dot"></i>Occupied</span
+            ><span><i class="empty-dot"></i>Empty</span
+            ><span><i class="latest-dot"></i>Latest path</span
+            ><span class="legend-depth">32 LEVELS</span>
+          </div>
+        </div>
+        <div class="explorer-toolbar" id="explorer-toolbar" inert>
+          <div class="view-buttons" role="group" aria-label="Tree views">
+            <button id="view-whole" type="button">Whole tree</button
+            ><button id="view-active" type="button" class="active">
+              Active region</button
+            ><button id="view-latest" type="button">
+              Latest leaf <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+          <form id="leaf-search" class="leaf-search">
+            <label class="sr-only" for="leaf-index">Go to leaf index</label
+            ><span aria-hidden="true">#</span
+            ><input
+              id="leaf-index"
+              name="leaf"
+              inputmode="numeric"
+              pattern="[0-9, ]+"
+              placeholder="Go to leaf index"
+              autocomplete="off"
+              required
+            /><button type="submit" aria-label="Go to leaf">↵</button>
+          </form>
+        </div>
+        <p id="search-error" class="inline-error" role="alert" hidden></p>
+        <div class="explorer-body">
+          <div class="tree-stage" id="tree-stage">
+            <div class="canvas-meta">
+              <span id="view-depth">DEPTH 00 → 05</span
+              ><span id="view-scale">LIVE TREE</span>
+            </div>
+            <canvas
+              id="tree-canvas"
+              inert
+              tabindex="0"
+              role="img"
+              aria-label="Interactive Ironwood tree. Drag, scroll horizontally, or Shift-scroll to pan. Scroll vertically or pinch to zoom. Use plus and minus to zoom, arrow keys to pan, and Home for the whole tree. Select a node to inspect it."
+              aria-describedby="tree-help"
+              >Use the leaf-index search and recent leaf buttons to inspect
+              commitments.</canvas
+            >
+            <div id="tree-waiting" class="tree-waiting" role="status">
+              <svg viewBox="0 0 200 116" fill="none" aria-hidden="true">
+                <path d="M100 16v22M100 38H52v24M100 38h48v24M52 70v15H24v18M52 85h28v18M148 70v15h-28v18M148 85h28v18" stroke="currentColor" />
+                <circle cx="100" cy="12" r="4" fill="currentColor" />
+                <path d="m52 61 5 5-5 5-5-5Zm96 0 5 5-5 5-5-5ZM21 103h6v6h-6Zm56 0h6v6h-6Zm40 0h6v6h-6Zm56 0h6v6h-6Z" stroke="currentColor" />
+              </svg>
+              <p class="eyebrow">IRONWOOD / STANDBY</p>
+              <h3 id="waiting-title">Connecting to the tree</h3>
+              <p id="waiting-detail">Your view will appear when verified chain data arrives.</p>
+              <button id="retry-connection" type="button">Retry connection <span aria-hidden="true">↻</span></button>
+              <span class="waiting-hint">Automatic reconnect enabled</span>
+            </div>
+            <div id="tree-tooltip" class="tree-tooltip" hidden></div>
+            <div class="canvas-bottom">
+              <div>
+                <p id="view-range">Loading the tree…</p>
+                <span id="tree-help"
+                  >DRAG TO PAN <span>·</span> SCROLL ↕ ZOOM / ↔ PAN
+                  <span>·</span> CLICK TO INSPECT</span
+                >
+              </div>
+              <div class="zoom-controls">
+                <button id="zoom-out" type="button" aria-label="Zoom out">
+                  −</button
+                ><span id="zoom-label">1×</span
+                ><button id="zoom-in" type="button" aria-label="Zoom in">
+                  +</button
+                ><button
+                  id="reset-view"
+                  type="button"
+                  aria-label="Reset to active region"
+                  title="Reset view"
+                >
+                  ⌖
+                </button>
+              </div>
+            </div>
+          </div>
+          <aside class="inspector" aria-label="Node inspector">
+            <div class="inspector-heading">
+              <span>NODE INSPECTOR</span><span class="cross">＋</span>
+            </div>
+            <div class="node-symbol" aria-hidden="true">
+              <svg viewBox="0 0 120 72" fill="none">
+                <path
+                  d="M60 8 84 22v28L60 64 36 50V22ZM36 22 60 36 84 22M60 36v28"
+                  stroke="currentColor"
+                />
+                <path d="M36 36 12 50M84 36 108 50" stroke="currentColor" />
+                <circle cx="12" cy="50" r="3" fill="currentColor" />
+                <circle cx="108" cy="50" r="3" fill="currentColor" />
+              </svg>
+            </div>
+            <p id="node-kind" class="eyebrow">VERIFIED SNAPSHOT</p>
+            <h3 id="node-title">Root node</h3>
+            <p id="node-state" class="node-state">Waiting for chain data</p>
+            <dl class="node-facts">
+              <div>
+                <dt>Depth</dt>
+                <dd id="node-depth">0 / 32</dd>
+              </div>
+              <div>
+                <dt>Leaf range</dt>
+                <dd id="node-range">—</dd>
+              </div>
+              <div>
+                <dt>Occupied</dt>
+                <dd id="node-occupied">—</dd>
+              </div>
+              <div id="node-added-row" hidden>
+                <dt>Added to tree</dt>
+                <dd id="node-added">—</dd>
+              </div>
+              <div id="node-block-row" hidden>
+                <dt>Block</dt>
+                <dd id="node-block">—</dd>
+              </div>
+              <div id="node-fill-row" hidden>
+                <dt>Likely fill date</dt>
+                <dd id="node-fill">—</dd>
+              </div>
+            </dl>
+            <div class="node-hash-label">
+              <span id="node-hash-label">NODE HASH</span
+              ><span id="node-verification">—</span>
+            </div>
+            <code id="node-hash" class="node-hash"
+              >Select a node to inspect its hash.</code
+            >
+            <p id="node-note" class="hint">
+              Every branch commits to the leaves beneath it.
+            </p>
+            <p id="node-error" class="inline-error" role="status" hidden></p>
+            <div class="inspector-actions">
+              <button id="explore-node" type="button" disabled>
+                Explore branch <span aria-hidden="true">↗</span></button
+              ><button id="parent-node" type="button" disabled>↑ Parent</button>
+            </div>
+          </aside>
+        </div>
+        <div class="explorer-footer">
+          <span
+            ><span class="live-dot"></span>
+            <span id="tree-snapshot">Waiting for verified snapshot</span></span
+          ><span
+            >EMPTY LEAF = 2 <span class="separator">/</span> HASH FUNCTION:
+            SINSEMILLA</span
+          >
+        </div>
+      </section>
+
+      <section class="recent-section" aria-labelledby="recent-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="recent-heading" class="eyebrow">LATEST COMMITMENTS</h2>
+          </div>
+          <span class="hint"
+            >Select a leaf to locate it in the tree
+            <span aria-hidden="true">↗</span></span
+          >
+        </div>
+        <div id="recent-leaves" class="recent-leaves">
+          <p class="hint">Waiting for commitments…</p>
+        </div>
+      </section>
+      <footer>
+        <span
+          >IRONWOOD <span class="separator">/</span> Note-commitment tree ·
+          Mainnet</span
+        ><span
+          ><span id="updated">Connecting…</span>
+          <span class="separator">/</span>
+          <a href="/v1/dashboard" target="_blank" rel="noopener"
+            >API ↗</a
+          ></span
+        >
+      </footer>
+    </main>
+  </body>
+</html>

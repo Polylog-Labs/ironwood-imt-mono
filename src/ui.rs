@@ -18,6 +18,8 @@ fn asset(content_type: &'static str, content: impl IntoResponse) -> Response {
 
 pub(crate) fn routes() -> Router<AppState> {
     Router::new()
+        .route("/ironwood", get(ironwood))
+        .route("/ironwood/", get(ironwood))
         .route(
             "/favicon.svg",
             get(|| async { asset("image/svg+xml", include_str!("../web/favicon.svg")) }),
@@ -80,4 +82,11 @@ pub(crate) fn routes() -> Router<AppState> {
                 )
             }),
         )
+}
+
+async fn ironwood() -> Response {
+    asset(
+        "text/html; charset=utf-8",
+        include_str!("../web/ironwood.html"),
+    )
 }

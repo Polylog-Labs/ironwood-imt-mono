@@ -23,13 +23,16 @@ This is an indexer trusting a validating node, **not an independent consensus va
 
 ## HTTP API
 
-The Rust server limits API requests to **20 per second per connection IP**, with a **240-request burst**. Excess requests receive **429**, a JSON error, and `Retry-After` in seconds. UI assets are exempt. Buckets live in memory, expire after 60 idle seconds, and are capped at 4,096 clients; a full table temporarily rejects new clients. Forwarding headers are deliberately ignored, so visitors behind the same reverse proxy share its bucket. This leaves room for frequent refreshes and 25 concurrent viewers polling every 10 seconds while bounding sustained request rates. Limits reset when the process restarts.
+The Rust server limits API requests to **20 per second per client IP**, with a **240-request burst for each IP**. There is no shared request budget across visitors. Excess requests receive **429**, a JSON error, and `Retry-After` in seconds. UI assets are exempt. Buckets live in memory, expire after 60 idle seconds, and are capped at 4,096 clients; a full table temporarily rejects new clients. Limits reset when the process restarts. People sharing a public IP also share its allowance.
+
+Direct connections use the socket peer. Explicitly trusted proxies may supply an overwritten `X-Real-IP`; Vercel may supply `X-Vercel-Forwarded-For` only with the configured shared proxy token. Unauthenticated forwarding headers are ignored. Missing, duplicate or malformed authenticated client IPs fail with 400 rather than bypassing the limiter. See [proxy configuration](deployment.md#per-client-rate-limiting) before deploying behind a proxy; without it the socket peer is the proxy itself.
 
 All routes are GET-only. `/v1/status` also includes the provider status. Provider labels expose URL origins only, excluding JSON-RPC paths and query strings that might contain API keys. Provider `last_success` records the last completed operation (initialization, catch-up pass, or mempool sample); it does not track individual downloaded batches. Hash values are 64-character hex strings. Block/transaction IDs retain RPC display order. Commitments, nullifiers, and tree hashes use canonical little-endian field bytes; Zebra's `finalRoot` display encoding is reversed before comparison.
 
 | Route | Result |
 | --- | --- |
-| `/` | Interactive tree explorer |
+| `/` | Coming-soon page with a link to Ironwood |
+| `/ironwood` | Interactive tree explorer |
 | `/v1/dashboard` | One database snapshot of occupancy, growth, root, and the 12 newest leaves, with sync/mempool freshness |
 | `/healthz` | Process liveness |
 | `/readyz` | 200 when caught up to a recent sampled node tip and mempool sample; otherwise 503 |

@@ -55,13 +55,19 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     let listener = tokio::net::TcpListener::bind(config.bind).await?;
-    let app = api::router(AppState {
-        store: store.clone(),
-        mempool: pending.clone(),
-        sync: status.clone(),
-        providers: Some((providers.clone(), mempool_providers.clone())),
-        stale_after_seconds: config.poll_seconds.saturating_mul(3).max(60),
-    });
+    let app = api::router_with_proxy(
+        AppState {
+            store: store.clone(),
+            mempool: pending.clone(),
+            sync: status.clone(),
+            providers: Some((providers.clone(), mempool_providers.clone())),
+            stale_after_seconds: config.poll_seconds.saturating_mul(3).max(60),
+        },
+        api::ProxyConfig {
+            trusted_proxies: config.trusted_proxy.clone(),
+            token: config.proxy_token.clone(),
+        },
+    );
     let (shutdown, stop) = watch::channel(false);
     let poll = Duration::from_secs(config.poll_seconds);
     let chain_task = tokio::spawn(sync::run(
