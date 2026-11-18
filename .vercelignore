@@ -1,0 +1,8 @@
+target/
+data/
+docs/
+tests/
+.git/
+.env*
+*.sqlite*
+.DS_Store
