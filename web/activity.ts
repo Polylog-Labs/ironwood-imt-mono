@@ -112,6 +112,7 @@ const calendarDays = new Map<number, Day>();
 const archivedYears = new Map<number, Day[]>();
 const loadingYears = new Set<number>();
 let calendarYear: number | undefined;
+let calendarWidth = 0;
 const poolPage = byId("pool-view");
 const viewActive = () => !poolPage.hidden && !document.hidden;
 const svgNS = "http://www.w3.org/2000/svg";
@@ -504,6 +505,22 @@ const archiveObserver = new IntersectionObserver(
   { root: calendarScroll },
 );
 
+function revealCalendarSelection(panel: ParentNode) {
+  const button = panel.querySelector('[aria-pressed="true"]');
+  if (!button) return;
+  const viewport = calendarScroll.getBoundingClientRect();
+  const cell = button.getBoundingClientRect();
+  if (cell.left < viewport.left || cell.right > viewport.right)
+    calendarScroll.scrollLeft += cell.right - viewport.right + 16;
+}
+
+new ResizeObserver(() => {
+  const width = calendarScroll.clientWidth;
+  if (!viewActive() || width === 0 || width === calendarWidth) return;
+  calendarWidth = width;
+  revealCalendarSelection(calendar);
+}).observe(calendarScroll);
+
 function yearGrid(year: number, activation: number, latest: number, breaks: number[]) {
   const panel = document.createElement("section");
   panel.className = "calendar-year";
@@ -614,11 +631,7 @@ function drawCalendar() {
       const left = panel.getBoundingClientRect().left -
         calendarScroll.getBoundingClientRect().left + calendarScroll.scrollLeft;
       calendarScroll.scrollLeft = left;
-      const selectedButton = panel.querySelector('[aria-pressed="true"]');
-      const cell = selectedButton?.getBoundingClientRect();
-      const viewport = calendarScroll.getBoundingClientRect();
-      if (cell && cell.right > viewport.right)
-        calendarScroll.scrollLeft += cell.right - viewport.right + 4;
+      revealCalendarSelection(matchMedia("(max-width: 780px)").matches ? calendar : panel);
     }
   } else {
     calendarScroll.scrollLeft = oldScroll;
