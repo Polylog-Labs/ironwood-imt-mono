@@ -54,6 +54,7 @@ pub fn router_with_proxy(state: AppState, proxy: ProxyConfig) -> Router {
         .route("/v1/activity", get(activity))
         .route("/v1/activity/weekdays", get(zoned_weekdays))
         .route("/v1/activity/calendar/{year}", get(activity_year))
+        .route("/v1/activity/flows/all-time", get(all_time_flows))
         .route("/v1/activity/flows/{day}", get(daily_flows))
         .route("/v1/dashboard", get(dashboard))
         .route("/healthz", get(|| async { Json(json!({"status":"ok"})) }))
@@ -93,6 +94,7 @@ async fn status(State(state): State<AppState>) -> Result<Json<Value>, ApiError> 
 }
 async fn activity(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
     let mut data = state.store.activity().await?;
+    data["flow_worker"] = json!(state.store.flow_worker_state());
     let pending = state.mempool.read().await;
     let count = pending
         .actions
@@ -150,6 +152,10 @@ async fn daily_flows(
         state.store.request_flow_day(day);
     }
     Ok(Json(flows))
+}
+
+async fn all_time_flows(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(state.store.all_time_flows().await?))
 }
 
 async fn dashboard(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {

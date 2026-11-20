@@ -111,68 +111,6 @@ impl Lightwalletd {
         Ok(rows)
     }
 
-    pub async fn flow_candidates(
-        &self,
-        start: u32,
-        end: u32,
-    ) -> Result<Vec<crate::activity::CandidateBlock>> {
-        ensure!(
-            end >= start && end - start < u32::from(self.batch_size),
-            "invalid flow range"
-        );
-        let request = proto::BlockRange {
-            start: Some(block_id(start)),
-            end: Some(block_id(end)),
-            // The local index already has the Ironwood transaction IDs. Only request
-            // other pools so dense Ironwood-only blocks do not need downloading again.
-            pool_types: vec![
-                proto::PoolType::Transparent as i32,
-                proto::PoolType::Sapling as i32,
-                proto::PoolType::Orchard as i32,
-            ],
-        };
-        let mut stream = self
-            .client
-            .clone()
-            .get_block_range(request)
-            .await?
-            .into_inner();
-        let mut blocks = Vec::new();
-        while let Some(block) = tokio::time::timeout(self.timeout, stream.message())
-            .await
-            .context("timed out waiting for compact flow candidates")??
-        {
-            ensure!(
-                block.height == u64::from(start) + blocks.len() as u64
-                    && block.height <= u64::from(end),
-                "unexpected flow block"
-            );
-            let other_pool_txids = block
-                .vtx
-                .into_iter()
-                .filter(|tx| {
-                    tx.index != 0
-                        && !(tx.vin.is_empty()
-                            && tx.vout.is_empty()
-                            && tx.spends.is_empty()
-                            && tx.outputs.is_empty()
-                            && tx.actions.is_empty())
-                })
-                .map(|tx| display_hash(&tx.txid))
-                .collect::<Result<_>>()?;
-            blocks.push(crate::activity::CandidateBlock {
-                height: block.height.try_into()?,
-                hash: display_hash(&block.hash)?,
-                other_pool_txids,
-            });
-        }
-        ensure!(
-            blocks.len() as u64 == u64::from(end - start) + 1,
-            "incomplete flow block range"
-        );
-        Ok(blocks)
-    }
-
     pub async fn raw_transaction(&self, txid: Bytes32) -> Result<(Vec<u8>, u64)> {
         let mut hash = txid.0;
         hash.reverse();

@@ -655,10 +655,7 @@ async fn leaf_dates_follow_pinned_blocks_and_reorgs() {
 
 #[tokio::test]
 async fn activity_counts_transactions_once_and_reorgs_remove_enrichment() {
-    use ironwood_indexer::{
-        activity::{CandidateBlock, Flow},
-        usage::BlockUsage,
-    };
+    use ironwood_indexer::{activity::Flow, usage::BlockUsage};
     let (dir, store) = database().await;
     let mut blocks = chain(&[vec![1, 2, 3], vec![4], vec![5], vec![6]]);
     for (i, b) in blocks.iter_mut().enumerate() {
@@ -684,8 +681,7 @@ async fn activity_counts_transactions_once_and_reorgs_remove_enrichment() {
     );
     let incomplete = store.daily_flows(13 * day).await.unwrap().unwrap();
     assert_eq!((incomplete.checked, incomplete.transactions), (0, 1));
-    // Newest first. The middle transaction only pays a fee, and compact
-    // classification makes it unnecessary to decode its full bytes.
+    // The middle transaction only pays a fee. Its balance still needs to be decoded.
     let rows = missing
         .iter()
         .zip([(-100, false), (800, true), (30, false)])
@@ -706,9 +702,31 @@ async fn activity_counts_transactions_once_and_reorgs_remove_enrichment() {
     usage.count(false, 1, 0, false);
     store.save_usage(vec![usage]).await.unwrap();
     let fee_only = store.daily_flows(12 * day).await.unwrap().unwrap();
+    assert_eq!((fee_only.checked, fee_only.transactions), (0, 1));
+    assert!(fee_only.median_out_zat.is_none());
+    assert_eq!(
+        store
+            .missing_daily_flows(12 * day, 128)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    store
+        .save_flows(vec![(
+            missing[1],
+            Flow {
+                net_zat: 800,
+                ironwood_only: true,
+            },
+        )])
+        .await
+        .unwrap();
+    let fee_only = store.daily_flows(12 * day).await.unwrap().unwrap();
     assert_eq!((fee_only.checked, fee_only.transactions), (1, 1));
     assert_eq!(fee_only.ironwood_only, 1);
-    assert!(fee_only.median_out_zat.is_none());
+    assert_eq!(fee_only.total_out_zat, 800);
+    assert_eq!(fee_only.median_out_zat, Some(800.0));
     assert!(
         store
             .missing_daily_flows(12 * day, 128)
@@ -747,30 +765,6 @@ async fn activity_counts_transactions_once_and_reorgs_remove_enrichment() {
     let mut usage = BlockUsage::new(mixed.height, mixed.hash);
     usage.count(false, 1, 0, true);
     store.save_usage(vec![usage]).await.unwrap();
-    assert_eq!(
-        store.flow_candidate_span(11 * day).await.unwrap(),
-        Some((mixed.height, mixed.height))
-    );
-    assert!(
-        store
-            .save_flow_candidates(vec![CandidateBlock {
-                height: mixed.height,
-                hash: mixed.hash,
-                other_pool_txids: Default::default()
-            }])
-            .await
-            .is_err()
-    );
-    store
-        .save_flow_candidates(vec![CandidateBlock {
-            height: mixed.height,
-            hash: mixed.hash,
-            other_pool_txids: [mixed.tx[0].txid].into(),
-        }])
-        .await
-        .unwrap();
-    assert!(store.flow_candidate_span(11 * day).await.unwrap().is_none());
-
     let tip = &blocks[3].block;
     store.save_balance(tip.hash, 9000).await.unwrap();
     let stats = store.activity().await.unwrap();
@@ -789,7 +783,7 @@ async fn activity_counts_transactions_once_and_reorgs_remove_enrichment() {
     assert_eq!(days[2]["classified"], true);
     assert_eq!(days[2]["internal"][1], 1);
     assert_eq!(stats["flows"]["median_in_zat"], 100.0);
-    assert_eq!(stats["flows"]["median_out_zat"], 30.0);
+    assert_eq!(stats["flows"]["median_out_zat"], 415.0);
     assert_eq!(stats["first_confirmation"]["count"], 1);
     assert_eq!(stats["balance"]["amount_zat"], 9000);
 
@@ -826,6 +820,151 @@ async fn activity_counts_transactions_once_and_reorgs_remove_enrichment() {
     assert_eq!(stats["commitments"]["from_coinbase"], 3);
     assert_eq!(stats["commitments"]["from_calendar"], 0);
     assert_eq!(stats["commitments"]["leaves"], 3);
+}
+
+#[tokio::test]
+async fn historical_flow_progress_excludes_the_current_utc_day() {
+    use ironwood_indexer::activity::Flow;
+
+    let (_dir, store) = database().await;
+    let today = unix_time() / 86400 * 86400;
+    let mut blocks = chain(&[vec![1], vec![2], vec![3]]);
+    for (block, time) in blocks.iter_mut().zip([today - 3600, today - 1800, today]) {
+        block.block.time = time;
+        block.block.tx[0].index = Some(1);
+    }
+    store.apply_batch(blocks.clone()).await.unwrap();
+    let missing = store.missing_flows().await.unwrap();
+    let flow = Flow {
+        net_zat: -100,
+        ironwood_only: false,
+    };
+    store
+        .save_flows(vec![(missing[0], flow), (missing[2], flow)])
+        .await
+        .unwrap();
+    let app = api::router(AppState {
+        store,
+        mempool: Arc::new(RwLock::new(MempoolSnapshot::default())),
+        sync: Arc::new(RwLock::new(SyncStatus::default())),
+        providers: None,
+        stale_after_seconds: 60,
+    });
+    let (status, stats) = request(app, "/v1/activity").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        stats["flow_history"],
+        json!({"transactions": 2, "decoded": 1})
+    );
+    assert_eq!(stats["flow_worker"], "idle");
+}
+
+#[tokio::test]
+async fn all_time_flows_use_individual_transfers_and_follow_reorgs() {
+    use ironwood_indexer::activity::Flow;
+
+    let (dir, store) = database().await;
+    let mut blocks = chain(&[
+        vec![1],
+        vec![2],
+        vec![3],
+        vec![4],
+        vec![5],
+        vec![6],
+        vec![7],
+        vec![8],
+        vec![9],
+    ]);
+    for (block, day) in blocks
+        .iter_mut()
+        .zip([10, 10, 500, 500, 500, 501, 502, 503, 503])
+    {
+        block.block.time = day * 86400;
+        block.block.tx[0].index = Some(1);
+    }
+    store.apply_batch(blocks.clone()).await.unwrap();
+    let rows = store
+        .missing_flows()
+        .await
+        .unwrap()
+        .into_iter()
+        .rev()
+        .zip([
+            (-3, false),
+            (-5, false),
+            (-1000, false),
+            (-1001, false),
+            (-1002, false),
+            (30, false),
+            (40, false),
+            (800, true),
+            (0, false),
+        ])
+        .map(|(key, (net_zat, ironwood_only))| {
+            (
+                key,
+                Flow {
+                    net_zat,
+                    ironwood_only,
+                },
+            )
+        })
+        .collect();
+    store.save_flows(rows).await.unwrap();
+
+    let app = api::router(AppState {
+        store: store.clone(),
+        mempool: Arc::new(RwLock::new(MempoolSnapshot::default())),
+        sync: Arc::new(RwLock::new(SyncStatus::default())),
+        providers: None,
+        stale_after_seconds: 60,
+    });
+    let (status, flows) = request(app, "/v1/activity/flows/all-time").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        flows,
+        json!({
+            "transactions":9,"checked":9,"ironwood_only":1,"cross_pool_changes":7,"in_count":5,"out_count":3,
+            "total_in_zat":3011,"total_out_zat":870,
+            "median_in_zat":1000.0,"median_out_zat":40.0
+        })
+    );
+
+    store.rollback(blocks[1].block.height).await.unwrap();
+    let flows = store.all_time_flows().await.unwrap();
+    assert_eq!(flows.transactions, 2);
+    assert_eq!((flows.total_in_zat, flows.total_out_zat), (8, 0));
+    assert_eq!(flows.median_in_zat, Some(4.0));
+    assert_eq!(flows.median_out_zat, None);
+
+    let day = 10 * 86400;
+    store.save_daily_flows(day).await.unwrap();
+    let flows = store.daily_flows(day).await.unwrap().unwrap();
+    assert_eq!((flows.total_in_zat, flows.total_out_zat), (8, 0));
+    assert_eq!(flows.cross_pool_changes, 2);
+    drop(store);
+
+    let path = dir.path().join("index.sqlite");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "ALTER TABLE daily_pool_flows DROP COLUMN total_in_zat;
+             ALTER TABLE daily_pool_flows DROP COLUMN total_out_zat;
+             ALTER TABLE daily_pool_flows DROP COLUMN cross_pool_changes;
+             UPDATE daily_pool_flows SET median_in_zat = NULL, checked=transactions;
+             CREATE TRIGGER dirty_daily_flows_classified AFTER INSERT ON block_usage
+             BEGIN SELECT 1; END;
+             CREATE TRIGGER dirty_daily_flows_reclassified AFTER UPDATE ON block_usage
+             BEGIN SELECT 1; END;
+             PRAGMA user_version=5;",
+        )
+        .unwrap();
+    }
+    let store = Store::open(&path).await.unwrap();
+    let flows = store.daily_flows(day).await.unwrap().unwrap();
+    assert_eq!((flows.total_in_zat, flows.total_out_zat), (8, 0));
+    assert_eq!(flows.cross_pool_changes, 2);
+    assert_eq!(flows.median_in_zat, Some(4.0));
 }
 
 #[tokio::test]

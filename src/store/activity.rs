@@ -1,35 +1,20 @@
 use super::*;
-use crate::activity::{CandidateBlock, Day, FLOW_WINDOW, Flow, FlowKey};
+use crate::activity::{Day, FLOW_WINDOW, Flow, FlowKey, FlowWorkerState};
 use chrono::{DateTime, Datelike, NaiveDate};
 use serde_json::{Value, json};
 
 const DAY: u64 = 86400;
 
-// A block's compact classification accounts for Ironwood-only transactions without
-// downloading their full bytes. A mixed transaction still needs its signed balance.
-const DAY_COVERAGE: &str = "
-    WITH decoded AS (
-        SELECT b.height, b.activity_count, u.ironwood_only AS classified_only,
-            COUNT(f.position) FILTER (WHERE f.ironwood_only=0) AS mixed,
-            COUNT(f.position) FILTER (WHERE f.ironwood_only=1) AS only_decoded
-        FROM blocks b LEFT JOIN block_usage u USING(height)
-        JOIN leaves l USING(height) LEFT JOIN transaction_flows f USING(position)
-        WHERE b.time>=?1 AND b.time<?2 AND l.action_index=0 AND l.tx_index>0
-        GROUP BY b.height
-    ), coverage AS (
-        SELECT height, activity_count, mixed, only_decoded,
-            CASE WHEN classified_only BETWEEN only_decoded AND activity_count-mixed
-                THEN classified_only ELSE only_decoded END AS only_count
-        FROM decoded
-    )";
-
-#[derive(Serialize)]
-pub struct DailyFlows {
+#[derive(Clone, Copy, Serialize)]
+pub struct PoolFlows {
     pub transactions: u64,
     pub checked: u64,
     pub ironwood_only: u64,
+    pub cross_pool_changes: u64,
     pub in_count: usize,
     pub out_count: usize,
+    pub total_in_zat: u64,
+    pub total_out_zat: u64,
     pub median_in_zat: Option<f64>,
     pub median_out_zat: Option<f64>,
 }
@@ -68,6 +53,14 @@ fn times(mut values: Vec<u64>) -> Value {
 }
 
 impl Store {
+    pub(crate) fn flow_worker_state(&self) -> FlowWorkerState {
+        *self.flow_worker.lock().unwrap()
+    }
+
+    pub(crate) fn set_flow_worker_state(&self, state: FlowWorkerState) {
+        *self.flow_worker.lock().unwrap() = state;
+    }
+
     pub fn request_flow_day(&self, day: u64) {
         let mut queue = self.requested_flow_days.lock().unwrap();
         if queue.len() < 8 && !queue.contains(&day) {
@@ -79,29 +72,45 @@ impl Store {
         self.requested_flow_days.lock().unwrap().pop_front()
     }
 
-    pub async fn daily_flows(&self, day: u64) -> Result<Option<DailyFlows>> {
+    pub async fn daily_flows(&self, day: u64) -> Result<Option<PoolFlows>> {
         self.read(move |conn| {
             let Some((first, last)) = flow_day_range(conn)? else {return Ok(None)};
             if !day.is_multiple_of(DAY) || !(first..=last).contains(&day) {
                 return Ok(None);
             }
             let saved = conn.query_row(
-                "SELECT transactions, checked, ironwood_only, in_count, out_count, median_in_zat, median_out_zat
+                "SELECT transactions, checked, ironwood_only, in_count, out_count, median_in_zat, median_out_zat,
+                        total_in_zat, total_out_zat, cross_pool_changes
                  FROM daily_pool_flows WHERE day=?1 AND dirty=0",
                 [day],
-                |row| Ok(DailyFlows{
+                |row| Ok(PoolFlows{
                     transactions:row.get(0)?, checked:row.get(1)?, ironwood_only:row.get(2)?, in_count:row.get(3)?,
                     out_count:row.get(4)?, median_in_zat:row.get(5)?, median_out_zat:row.get(6)?,
+                    total_in_zat:row.get(7)?, total_out_zat:row.get(8)?,
+                    cross_pool_changes:row.get(9)?,
                 })
             ).optional()?;
-            Ok(Some(match saved { Some(result)=>result, None=>calculate_day_flows(conn,day)? }))
+            Ok(Some(match saved { Some(result)=>result, None=>calculate_flows(conn, day, day + DAY)? }))
         }).await
+    }
+
+    pub async fn all_time_flows(&self) -> Result<PoolFlows> {
+        let mut cached = self.all_time_flow_cache.lock().await;
+        if let Some((sampled, flows)) = *cached
+            && sampled.elapsed().as_secs() < 60
+        {
+            return Ok(flows);
+        }
+        let flows = self
+            .read(|conn| calculate_flows(conn, 0, i64::MAX as u64))
+            .await?;
+        *cached = Some((std::time::Instant::now(), flows));
+        Ok(flows)
     }
 
     pub async fn next_incomplete_flow_day(&self) -> Result<Option<u64>> {
         self.read(|conn| {
             let Some((first,last))=flow_day_range(conn)? else {return Ok(None)};
-            let first = first.max(last.saturating_sub(364 * DAY));
             Ok(conn.query_row(
                 "WITH RECURSIVE calendar(day) AS (VALUES (?2) UNION ALL SELECT day-86400 FROM calendar WHERE day>?1)
                  SELECT day FROM calendar LEFT JOIN daily_pool_flows f USING(day)
@@ -114,102 +123,32 @@ impl Store {
     pub async fn save_daily_flows(&self, day: u64) -> Result<()> {
         self.writer.call_raw(move |conn| -> Result<()> {
             let tx=conn.transaction()?;
-            let flows=calculate_day_flows(&tx,day)?;
-            tx.execute("INSERT INTO daily_pool_flows VALUES (?1,?2,?3,?4,?5,?6,?7,?8,0)
+            let flows=calculate_flows(&tx, day, day + DAY)?;
+            tx.execute("INSERT INTO daily_pool_flows (day, transactions, checked, ironwood_only, in_count,
+                    out_count, median_in_zat, median_out_zat, total_in_zat, total_out_zat, cross_pool_changes, dirty)
+                VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,0)
                 ON CONFLICT(day) DO UPDATE SET transactions=excluded.transactions, checked=excluded.checked,
                 ironwood_only=excluded.ironwood_only, in_count=excluded.in_count, out_count=excluded.out_count,
-                median_in_zat=excluded.median_in_zat, median_out_zat=excluded.median_out_zat, dirty=0",
+                median_in_zat=excluded.median_in_zat, median_out_zat=excluded.median_out_zat,
+                total_in_zat=excluded.total_in_zat, total_out_zat=excluded.total_out_zat,
+                cross_pool_changes=excluded.cross_pool_changes, dirty=0",
                 params![day,flows.transactions,flows.checked,flows.ironwood_only,
-                    flows.in_count,flows.out_count,flows.median_in_zat,flows.median_out_zat])?;
+                    flows.in_count,flows.out_count,flows.median_in_zat,flows.median_out_zat,
+                    flows.total_in_zat,flows.total_out_zat,flows.cross_pool_changes])?;
             tx.commit()?;
             Ok(())
         }).await?
     }
 
-    pub async fn flow_candidate_span(&self, day: u64) -> Result<Option<(u32, u32)>> {
-        self.read(move |conn| {
-            let (first, last): (Option<u32>, Option<u32>) = conn.query_row(
-                "SELECT MIN(b.height),MAX(b.height) FROM blocks b JOIN block_usage u USING(height)
-                 WHERE b.time>=?1 AND b.time<?2 AND b.activity_count>u.ironwood_only
-                 AND NOT EXISTS (SELECT 1 FROM flow_candidate_blocks c WHERE c.height=b.height)",
-                params![day, day + DAY],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )?;
-            Ok(first.zip(last))
-        })
-        .await
-    }
-
-    pub async fn save_flow_candidates(&self, blocks: Vec<CandidateBlock>) -> Result<()> {
-        self.writer
-            .call_raw(move |conn| -> Result<()> {
-                let tx = conn.transaction()?;
-                for block in blocks {
-                    let Some(expected):Option<usize> = tx.query_row(
-                    "SELECT activity_count-ironwood_only FROM blocks JOIN block_usage USING(height)
-                     WHERE height=?1 AND hash=?2",
-                    params![block.height,block.hash],|r|r.get(0),
-                ).optional()? else {continue};
-                    if expected == 0 {
-                        continue;
-                    }
-                    let mut stmt = tx.prepare_cached(
-                        "SELECT position, txid FROM leaves
-                    WHERE height=?1 AND action_index=0 AND tx_index>0",
-                    )?;
-                    let mut positions = Vec::with_capacity(expected);
-                    for result in stmt.query_map([block.height], |r| {
-                        Ok((r.get::<_, u64>(0)?, r.get::<_, Bytes32>(1)?))
-                    })? {
-                        let (position, txid) = result?;
-                        if block.other_pool_txids.contains(&txid) {
-                            positions.push(position)
-                        }
-                    }
-                    ensure!(
-                        positions.len() == expected,
-                        "compact flow candidate count differs at block {}",
-                        block.height
-                    );
-                    tx.execute(
-                        "DELETE FROM flow_candidates WHERE position IN (
-                    SELECT position FROM leaves WHERE height=?1 AND action_index=0 AND tx_index>0
-                )",
-                        [block.height],
-                    )?;
-                    let mut insert =
-                        tx.prepare_cached("INSERT INTO flow_candidates VALUES (?1)")?;
-                    for position in positions {
-                        insert.execute([position])?;
-                    }
-                    tx.execute(
-                        "INSERT OR IGNORE INTO flow_candidate_blocks VALUES (?1)",
-                        [block.height],
-                    )?;
-                }
-                tx.commit()?;
-                Ok(())
-            })
-            .await?
-    }
-
     pub async fn missing_daily_flows(&self, day: u64, limit: usize) -> Result<Vec<FlowKey>> {
-        // Fill blocks with the largest share of undecoded mixed transactions first.
         self.read(move |conn| {
-            let sql = format!(
-                "{DAY_COVERAGE}
-                SELECT l.position, l.height, l.txid
-                FROM coverage c JOIN leaves l USING(height)
-                LEFT JOIN transaction_flows f USING(position)
-                LEFT JOIN flow_candidate_blocks known ON known.height=l.height
-                LEFT JOIN flow_candidates candidate USING(position)
-                WHERE c.mixed+c.only_count<c.activity_count AND f.position IS NULL
-                    AND (known.height IS NULL OR candidate.position IS NOT NULL)
-                    AND l.action_index=0 AND l.tx_index>0
-                ORDER BY 1.0*(c.activity_count-c.mixed-c.only_count)
-                    /(c.activity_count-c.mixed-c.only_decoded) DESC, l.position DESC LIMIT ?3"
-            );
-            let mut stmt = conn.prepare_cached(&sql)?;
+            let mut stmt = conn.prepare_cached(
+                "SELECT l.position, l.height, l.txid FROM blocks b JOIN leaves l USING(height)
+                 LEFT JOIN transaction_flows f USING(position)
+                 WHERE b.time>=?1 AND b.time<?2 AND b.activity_count>0
+                    AND l.action_index=0 AND l.tx_index>0 AND f.position IS NULL
+                 ORDER BY l.position DESC LIMIT ?3",
+            )?;
             let missing = stmt.query_map(params![day, day + DAY, limit], |row| {
                 Ok(FlowKey {
                     position: row.get(0)?,
@@ -239,17 +178,28 @@ impl Store {
         }).await
     }
     pub async fn save_flows(&self, rows: Vec<(FlowKey, Flow)>) -> Result<()> {
-        self.writer.call_raw(move |conn| -> Result<()> {
-            let tx = conn.transaction()?;
-            for (key, flow) in rows {
-                // A rollback can replace the leaf at this position during the network request.
-                tx.prepare_cached("INSERT OR IGNORE INTO transaction_flows
-                    SELECT position, ?4, ?5 FROM leaves WHERE position=?1 AND txid=?2 AND height=?3")?
-                    .execute(params![key.position,key.txid,key.height,flow.net_zat,flow.ironwood_only])?;
-            }
-            tx.commit()?;
-            Ok(())
-        }).await?
+        self.writer
+            .call_raw(move |conn| -> Result<()> {
+                let tx = conn.transaction()?;
+                for (key, flow) in rows {
+                    // A rollback can replace the leaf at this position during the network request.
+                    tx.prepare_cached(
+                        "INSERT OR IGNORE INTO transaction_flows
+                    SELECT position, ?4, ?5 FROM leaves WHERE position=?1 AND txid=?2 AND height=?3
+                        AND action_index=0 AND tx_index>0",
+                    )?
+                    .execute(params![
+                        key.position,
+                        key.txid,
+                        key.height,
+                        flow.net_zat,
+                        flow.ironwood_only
+                    ])?;
+                }
+                tx.commit()?;
+                Ok(())
+            })
+            .await?
     }
     pub async fn save_balance(&self, hash: Bytes32, amount: u64) -> Result<()> {
         self.writer.call_raw(move |conn| -> Result<()> {
@@ -309,15 +259,7 @@ impl Store {
 
     pub async fn usage_gap(&self) -> Result<Option<(u32, u32)>> {
         self.read(|conn| {
-            let tip = tip(conn)?;
-            let activation: u32 =
-                conn.query_row("SELECT start_height FROM metadata", [], |r| r.get(0))?;
-            let min: Option<u32> = conn.query_row(
-                "SELECT MIN(height) FROM blocks WHERE time>=?1 AND height>=?2",
-                params![(tip.time / DAY).saturating_sub(364) * DAY, activation],
-                |r| r.get(0),
-            )?;
-            let Some(min) = min else { return Ok(None) };
+            let min: u32 = conn.query_row("SELECT start_height FROM metadata", [], |r| r.get(0))?;
             // A new tip may appear while we are traversing older ranges. Only fetch the
             // contiguous missing suffix ending at the newest hole.
             let end: Option<u32> = conn
@@ -364,31 +306,37 @@ fn flow_day_range(conn: &rusqlite::Connection) -> Result<Option<(u64, u64)>> {
     Ok(activation.map(|time| (time / DAY * DAY, last * DAY)))
 }
 
-fn calculate_day_flows(conn: &rusqlite::Connection, day: u64) -> Result<DailyFlows> {
-    let sql = format!(
-        "{DAY_COVERAGE}
-        SELECT COALESCE(SUM(activity_count),0), COALESCE(SUM(mixed+only_count),0),
-            COALESCE(SUM(only_count),0) FROM coverage"
-    );
-    let (transactions, checked, ironwood_only) =
-        conn.query_row(&sql, params![day, day + DAY], |r| {
-            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-        })?;
+fn calculate_flows(conn: &rusqlite::Connection, start: u64, end: u64) -> Result<PoolFlows> {
+    let transactions = conn.query_row(
+        "SELECT COALESCE(SUM(activity_count),0) FROM blocks WHERE time>=?1 AND time<?2",
+        params![start, end],
+        |row| row.get(0),
+    )?;
     let mut stmt = conn.prepare_cached(
-        "SELECT f.net_zat FROM blocks b JOIN leaves l USING(height)
-        JOIN transaction_flows f USING(position)
-        WHERE b.time>=?1 AND b.time<?2 AND f.ironwood_only=0",
+        "SELECT f.net_zat, f.ironwood_only FROM blocks b JOIN leaves l USING(height)
+         JOIN transaction_flows f USING(position)
+         WHERE b.time>=?1 AND b.time<?2 AND l.action_index=0 AND l.tx_index>0",
     )?;
     let mut amounts = FlowAmounts::default();
-    for net in stmt.query_map(params![day, day + DAY], |r| r.get(0))? {
-        amounts.push(net?);
+    let (mut checked, mut ironwood_only, mut cross_pool_changes) = (0, 0, 0);
+    let mut rows = stmt.query(params![start, end])?;
+    while let Some(row) = rows.next()? {
+        checked += 1;
+        let net = row.get(0)?;
+        let only = row.get::<_, bool>(1)?;
+        ironwood_only += u64::from(only);
+        cross_pool_changes += u64::from(!only && net != 0);
+        amounts.push(net);
     }
-    Ok(DailyFlows {
+    Ok(PoolFlows {
         transactions,
         checked,
         ironwood_only,
+        cross_pool_changes,
         in_count: amounts.deposits.len(),
         out_count: amounts.withdrawals.len(),
+        total_in_zat: amounts.deposits.iter().sum(),
+        total_out_zat: amounts.withdrawals.iter().sum(),
         median_in_zat: median(&mut amounts.deposits),
         median_out_zat: median(&mut amounts.withdrawals),
     })
@@ -492,9 +440,8 @@ fn recent_flows(conn: &rusqlite::Connection) -> Result<Value> {
             decoded += 1;
             if row.get::<_, bool>(1)? {
                 only += 1;
-            } else {
-                amounts.push(amount);
             }
+            amounts.push(amount);
         }
     }
     Ok(
@@ -550,6 +497,15 @@ fn activity_snapshot(conn: &rusqlite::Connection) -> Result<Value> {
     let (days, activation) = calendar_days(conn, &snap, end)?;
     let rolling_days = &days[days.len().saturating_sub(365)..];
     let commitments = commitment_breakdown(conn, rolling_days, &snap)?;
+    let today = unix_time() / DAY * DAY;
+    let (historical_transactions, historical_decoded): (u64, u64) = conn.query_row(
+        "SELECT (SELECT COALESCE(SUM(activity_count),0) FROM blocks WHERE time<?1),
+                (SELECT COUNT(*) FROM transaction_flows) -
+                (SELECT COUNT(*) FROM blocks JOIN leaves USING(height)
+                 JOIN transaction_flows USING(position) WHERE time>=?1)",
+        [today],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
     let balance = conn
         .query_row(
             "SELECT amount_zat, height, time FROM pool_balances JOIN blocks USING(height)
@@ -602,7 +558,9 @@ fn activity_snapshot(conn: &rusqlite::Connection) -> Result<Value> {
     Ok(
         json!({"checkpoint":snap.checkpoint,"network":snap.network,"days":days,"activation_day":activation.map(|day| day * DAY),"commitments":commitments,
         "weekdays":weekday_medians(rolling_days,activation,false),"internal_weekdays":weekday_medians(rolling_days,activation,true),
-        "flows":recent_flows(conn)?,"balance":balance,"ten_confirmations":times(intervals),
+        "flows":recent_flows(conn)?,
+        "flow_history":{"transactions":historical_transactions,"decoded":historical_decoded},
+        "balance":balance,"ten_confirmations":times(intervals),
         "first_confirmation":times(waits),"confirmed_7d":confirmed,
         "load":{"blocks":blocks,"mean_actions":actions,"capacity":capacity}}),
     )

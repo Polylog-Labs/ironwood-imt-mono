@@ -18,10 +18,13 @@ pub struct Store {
     writer: Connection,
     reader: Connection,
     requested_flow_days: std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<u64>>>,
+    flow_worker: std::sync::Arc<std::sync::Mutex<crate::activity::FlowWorkerState>>,
     weekday_cache:
         std::sync::Arc<tokio::sync::Mutex<std::collections::VecDeque<weekdays::WeekdayCacheEntry>>>,
     activity_cache:
         std::sync::Arc<tokio::sync::Mutex<Option<(std::time::Instant, serde_json::Value)>>>,
+    all_time_flow_cache:
+        std::sync::Arc<tokio::sync::Mutex<Option<(std::time::Instant, activity::PoolFlows)>>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -252,8 +255,8 @@ impl Store {
             conn.busy_timeout(std::time::Duration::from_secs(5))?;
             conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA cache_size=-16384;")?;
             let version: u32 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-            ensure!(version <= 5, "database schema is newer than this binary");
-            if version < 5 {
+            ensure!(version <= 8, "database schema is newer than this binary");
+            if version < 8 {
                 let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
                 let version: u32 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
                 if version == 0 {
@@ -274,6 +277,15 @@ impl Store {
                 if version < 5 {
                     tx.execute_batch(include_str!("commitment_counts_schema.sql"))?;
                 }
+                if version < 6 {
+                    tx.execute_batch(include_str!("flow_totals_schema.sql"))?;
+                }
+                if version < 7 {
+                    tx.execute_batch(include_str!("flow_coverage_schema.sql"))?;
+                }
+                if version < 8 {
+                    tx.execute_batch(include_str!("cross_pool_changes_schema.sql"))?;
+                }
                 tx.commit()?;
             }
             Ok(())
@@ -291,8 +303,10 @@ impl Store {
             writer,
             reader,
             requested_flow_days: Default::default(),
+            flow_worker: Default::default(),
             weekday_cache: Default::default(),
             activity_cache: Default::default(),
+            all_time_flow_cache: Default::default(),
         })
     }
 
@@ -447,6 +461,7 @@ impl Store {
             })
             .await??;
         *self.activity_cache.lock().await = None;
+        *self.all_time_flow_cache.lock().await = None;
         self.weekday_cache.lock().await.clear();
         Ok(())
     }

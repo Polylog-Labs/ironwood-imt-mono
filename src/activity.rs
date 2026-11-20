@@ -3,7 +3,7 @@ use anyhow::{Context, Result, ensure};
 use futures::{StreamExt, TryStreamExt, stream};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     time::Duration,
 };
 use tokio::sync::watch;
@@ -24,12 +24,6 @@ pub struct FlowKey {
     pub height: u32,
     pub txid: Bytes32,
 }
-pub struct CandidateBlock {
-    pub height: u32,
-    pub hash: Bytes32,
-    pub other_pool_txids: HashSet<Bytes32>,
-}
-
 #[derive(Clone, Copy)]
 pub struct Flow {
     pub net_zat: i64,
@@ -187,51 +181,25 @@ pub async fn refresh_balance(node: &JsonRpc, store: &Store) -> Result<()> {
     store.save_balance(checkpoint.hash, amount).await
 }
 
-async fn classify_daily_candidates(
-    providers: &Providers,
-    store: &Store,
-    day: u64,
-    concurrency: usize,
-) -> Result<()> {
-    let Some((first, last)) = store.flow_candidate_span(day).await? else {
-        return Ok(());
-    };
-    providers
-        .execute("daily flow candidates", |_, rpc| async move {
-            let Rpc::Lightwalletd(client) = rpc else {
-                return Ok(());
-            };
-            let size = u32::from(client.batch_size());
-            let ranges = (first..=last).step_by(size as usize);
-            let mut blocks = stream::iter(ranges)
-                .map(|start| {
-                    client.flow_candidates(start, last.min(start.saturating_add(size - 1)))
-                })
-                .buffer_unordered(concurrency.min(4));
-            while let Some(batch) = blocks.next().await {
-                store.save_flow_candidates(batch?).await?;
-            }
-            Ok(())
-        })
-        .await
-}
-
 async fn backfill_day(providers: &Providers, store: &Store, concurrency: usize) -> Result<()> {
     let day = match store.next_flow_day() {
         Some(day) => Some(day),
         None => store.next_incomplete_flow_day().await?,
     };
     let Some(day) = day else { return Ok(()) };
-    let mut missing = store.missing_daily_flows(day, 512).await?;
-    if !missing.is_empty() {
-        if let Err(error) = classify_daily_candidates(providers, store, day, concurrency).await {
-            tracing::warn!(day,error=%format!("{error:#}"),"compact flow candidates unavailable");
-        }
-        missing = store.missing_daily_flows(day, 512).await?;
-    }
+    let missing = store.missing_daily_flows(day, 512).await?;
     let result = fetch_flows(providers, store, concurrency, &missing).await;
     store.save_daily_flows(day).await?;
     result
+}
+
+#[derive(Clone, Copy, Default, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum FlowWorkerState {
+    #[default]
+    Idle,
+    Decoding,
+    Retrying,
 }
 
 pub async fn run(
@@ -242,6 +210,7 @@ pub async fn run(
     poll: Duration,
     mut stop: watch::Receiver<bool>,
 ) {
+    store.set_flow_worker_state(FlowWorkerState::Decoding);
     let mut flows = tokio::time::interval(poll);
     let mut balances = tokio::time::interval(Duration::from_secs(300));
     let mut daily = tokio::time::interval(Duration::from_secs(2));
@@ -254,8 +223,12 @@ pub async fn run(
                 _ = flows.tick() => if let Err(e) = fill_flows(&providers,&store,concurrency).await {
                     tracing::warn!(error = %format!("{e:#}"), "flow refresh failed");
                 },
-                _ = daily.tick() => if let Err(error) = backfill_day(&providers,&store,concurrency).await {
-                    tracing::warn!(error=%format!("{error:#}"), "daily flow refresh failed");
+                _ = daily.tick() => match backfill_day(&providers, &store, concurrency).await {
+                    Ok(()) => store.set_flow_worker_state(FlowWorkerState::Decoding),
+                    Err(error) => {
+                        store.set_flow_worker_state(FlowWorkerState::Retrying);
+                        tracing::warn!(error=%format!("{error:#}"), "daily flow refresh failed");
+                    }
                 },
                 _ = balances.tick(), if balance.is_some() => if let Some(node) = &balance
                     && let Err(e) = refresh_balance(node, &store).await {
@@ -265,6 +238,7 @@ pub async fn run(
         }
     };
     tokio::select! { _ = stop.changed() => {}, _ = work => {} }
+    store.set_flow_worker_state(FlowWorkerState::Idle);
 }
 
 #[derive(Serialize, Default)]
