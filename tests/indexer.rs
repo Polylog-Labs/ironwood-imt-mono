@@ -318,6 +318,7 @@ async fn embedded_ui_serves_compiled_modules_without_a_node_runtime() {
     });
     for (uri, expected) in [
         ("/activity.js", "from \"./dom.js\""),
+        ("/activity-model.js", "summarizeThroughput"),
         ("/navigation.js", "import(\"./activity.js\")"),
         ("/dashboard.js", "from \"./tree.js\""),
         ("/tree.js", "from \"./dom.js\""),

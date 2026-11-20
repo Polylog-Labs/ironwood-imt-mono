@@ -83,32 +83,35 @@
               <h2 id="selected-date">Daily activity</h2>
               <small id="chart-date-basis" hidden>UTC date</small>
             </div>
-            <div class="timezone" id="chart-timezone">
-              <button
-                type="button"
-                id="timezone-toggle"
-                aria-expanded="false"
-                aria-controls="timezone-popup"
-              >
-                <span id="timezone-name">UTC</span>
-              </button>
-              <div
-                id="timezone-popup"
-                role="group"
-                aria-label="Chart time zone"
-                hidden
-              >
-                <label for="timezone-search" class="sr-only"
-                  >Search time zones</label
+            <div class="hour-controls">
+              <div class="timezone" id="chart-timezone">
+                <button
+                  type="button"
+                  id="timezone-toggle"
+                  aria-expanded="false"
+                  aria-controls="timezone-popup"
                 >
-                <input
-                  id="timezone-search"
-                  type="search"
-                  placeholder="Search time zones"
-                  autocomplete="off"
-                />
-                <div id="timezone-options"></div>
+                  <span id="timezone-name">UTC</span>
+                </button>
+                <div
+                  id="timezone-popup"
+                  role="group"
+                  aria-label="Chart time zone"
+                  hidden
+                >
+                  <label for="timezone-search" class="sr-only"
+                    >Search time zones</label
+                  >
+                  <input
+                    id="timezone-search"
+                    type="search"
+                    placeholder="Search time zones"
+                    autocomplete="off"
+                  />
+                  <div id="timezone-options"></div>
+                </div>
               </div>
+              <button id="hour-scale" type="button" aria-pressed="false" aria-controls="hour-chart" title="Use a logarithmic scale to see smaller bars beside spikes">Log scale</button>
             </div>
           </div>
           <div class="day-total-row">
@@ -147,59 +150,80 @@
         </div>
       </section>
       <div class="insights">
-        <section class="flow-panel" aria-labelledby="flows-heading">
-          <div class="panel-head">
-            <div class="flow-heading">
-              <h2 id="flows-heading">Pool flows</h2>
-              <p class="unit-label flow-date" id="flow-date">ZEC</p>
-            </div>
-            <div class="flow-scope" role="group" aria-label="Pool flow period">
-              <button id="flow-daily" type="button" aria-pressed="true" disabled>Daily</button>
-              <button id="flow-all-time" type="button" aria-pressed="false">All time</button>
-            </div>
-          </div>
-          <div class="flow-summaries">
-            <section class="flow-totals" aria-labelledby="flow-totals-heading">
-              <h2 id="flow-totals-heading">Total flows</h2>
-              <div class="flow-pair">
-                <div>
-                  <h3>Inflow</h3>
-                  <strong id="total-in">—</strong>
-                </div>
-                <div>
-                  <h3>Outflow</h3>
-                  <strong id="total-out">—</strong>
-                </div>
+        <div class="pool-panels">
+          <section class="flow-panel" aria-labelledby="flows-heading">
+            <div class="panel-head">
+              <div class="flow-heading">
+                <h2 id="flows-heading">Pool flows</h2>
+                <p class="unit-label flow-date" id="flow-date">ZEC</p>
               </div>
-            </section>
-            <section aria-labelledby="flow-medians-heading">
-              <h2 id="flow-medians-heading">Median flows</h2>
-              <div class="flow-pair">
-                <div>
-                  <h3>Inflow</h3>
-                  <strong id="median-in">—</strong
-                  ><small id="count-in">Inflows</small>
-                </div>
-                <div>
-                  <h3>Outflow</h3>
-                  <strong id="median-out">—</strong
-                  ><small id="count-out">Outflows</small>
-                </div>
+              <div class="flow-scope" role="group" aria-label="Pool activity period">
+                <button id="flow-daily" type="button" aria-pressed="true" disabled>Daily</button>
+                <button id="flow-all-time" type="button" aria-pressed="false">All time</button>
               </div>
-            </section>
-          </div>
-        </section>
+            </div>
+            <div class="flow-summaries">
+              <section class="flow-totals" aria-labelledby="flow-totals-heading">
+                <h2 id="flow-totals-heading">Total flows</h2>
+                <div class="flow-pair">
+                  <div>
+                    <h3>Inflow</h3>
+                    <strong id="total-in">—</strong>
+                  </div>
+                  <div>
+                    <h3>Outflow</h3>
+                    <strong id="total-out">—</strong>
+                  </div>
+                </div>
+              </section>
+              <section aria-labelledby="flow-medians-heading">
+                <h2 id="flow-medians-heading">Median flows</h2>
+                <div class="flow-pair">
+                  <div>
+                    <h3>Inflow</h3>
+                    <strong id="median-in">—</strong
+                    ><small id="count-in">Inflows</small>
+                  </div>
+                  <div>
+                    <h3>Outflow</h3>
+                    <strong id="median-out">—</strong
+                    ><small id="count-out">Outflows</small>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+          <section class="throughput-panel" aria-label="Ironwood transaction rate">
+            <p class="detail">Confirmed transactions involving Ironwood</p>
+            <dl class="throughput-stats">
+              <div>
+                <dt>Peak hour</dt>
+                <dd><span id="tps-hour">—</span> <span class="tps-unit">TPS</span></dd>
+              </div>
+              <div>
+                <dt id="tps-average-label">Day average</dt>
+                <dd><span id="tps-day">—</span> <span class="tps-unit">TPS</span></dd>
+              </div>
+            </dl>
+            <p class="detail" id="tps-period">Awaiting a complete indexed hour</p>
+          </section>
+        </div>
         <section class="week-panel">
-          <div class="panel-head">
-            <h2 id="weekday-heading">Busiest weekday</h2>
-            <span class="unit-label" id="weekday-zone">UTC</span>
-          </div>
-          <div class="weekday-result" role="status" aria-atomic="true">
-            <strong id="weekday">—</strong>
-            <div class="weekday-peak">
-              <small>Typical peak hour</small>
-              <span id="weekday-hour">—</span>
+          <div class="weekday-stack">
+            <div class="weekday-summary" id="weekday-summary">
+              <div class="panel-head">
+                <h2 id="weekday-heading">Busiest weekday</h2>
+                <span class="unit-label" id="weekday-zone">UTC</span>
+              </div>
+              <div class="weekday-result" role="status" aria-atomic="true">
+                <strong id="weekday">—</strong>
+                <div class="weekday-peak">
+                  <small>Typical peak hour</small>
+                  <span class="weekday-hour" id="weekday-hour">—</span>
+                </div>
+              </div>
             </div>
+            <div class="weekday-sizes" id="weekday-summary-sizes" aria-hidden="true"></div>
           </div>
           <div
             id="weekday-bars"
@@ -207,10 +231,16 @@
             role="group"
             aria-label="Select a weekday to see its typical peak hour"
           ></div>
-          <p class="detail">Select a day to see its typical peak hour.</p>
-          <p class="detail" id="weekday-detail">
-            Median daily count across complete indexed days.
-          </p>
+          <div class="weekday-help">
+            <p class="detail">Select a day to see its peak hour.</p>
+            <button id="weekday-reset" type="button" aria-controls="weekday-summary weekday-detail" title="Show busiest weekday" disabled>Reset</button>
+          </div>
+          <div class="weekday-stack">
+            <p class="detail" id="weekday-detail">
+              Median daily count across complete indexed days.
+            </p>
+            <div class="weekday-sizes" id="weekday-detail-sizes" aria-hidden="true"></div>
+          </div>
         </section>
       </div>
       <section
@@ -309,6 +339,9 @@
           also includes actions in miner coinbase transactions. Dates and hours
           use the block timestamp in UTC. The brightest squares mark the upper
           quarter of active days in the displayed range.
+          Log scale compresses hourly bar heights using log(1 + count) so
+          smaller values remain visible beside spikes. Tooltips and selected
+          hour counts always show the original transaction totals.
         </p>
         <p>
           Pool flows use the net Ironwood value of each decoded transaction.
@@ -319,6 +352,18 @@
           transaction uses only Ironwood. The cross-pool count covers transactions
           that touch another pool and change Ironwood’s public balance.
           Amounts paid between shielded users remain private.
+        </p>
+        <p>
+          Ironwood TPS counts distinct confirmed transactions involving the
+          Ironwood pool, including transfers across pools and excluding miner
+          coinbase transactions. It measures pool activity, not network-wide
+          Zcash TPS or maximum capacity. Daily uses the selected UTC calendar
+          date; All time uses all indexed history. The average divides the
+          transaction count by the seconds in complete indexed hours in that
+          period. Peak hour is the busiest complete hour’s count divided by
+          3,600. The current partial hour and the partial activation day are
+          excluded. Missing history shows no estimate. All time switches flows
+          and TPS together and restores the busiest-weekday summary.
         </p>
         <p>
           Weekday rankings compare median transaction counts per complete day

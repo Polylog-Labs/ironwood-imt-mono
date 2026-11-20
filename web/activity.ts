@@ -1,9 +1,6 @@
 import { byId } from "./dom.ts";
+import { summarizeThroughput, type Day } from "./activity-model.ts";
 
-interface Day {
-  start: number;
-  hours: number[];
-}
 interface Timing {
   count: number;
   mean: number | null;
@@ -59,6 +56,7 @@ interface PoolFlows {
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const amount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 9 });
 const roundedAmount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+const tps = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 3 });
 const date = (seconds: number) => new Date(seconds * 1000);
 const shortDate = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
@@ -191,14 +189,18 @@ async function showFlows() {
   }
 }
 
-dailyFlows.addEventListener("click", () => {
-  allTime = false;
+function setPoolScope(history: boolean) {
+  allTime = history;
+  if (allTime) {
+    selectedWeekday = undefined;
+    if (weekdayBars.childElementCount) showWeekdayDetail();
+    weekdayReset.disabled = true;
+  }
   void showFlows();
-});
-allTimeFlows.addEventListener("click", () => {
-  allTime = true;
-  void showFlows();
-});
+  renderThroughput();
+}
+dailyFlows.addEventListener("click", () => setPoolScope(false));
+allTimeFlows.addEventListener("click", () => setPoolScope(true));
 
 function showDay(day: Day) {
   selected = day.start;
@@ -218,9 +220,18 @@ function showDay(day: Day) {
     day.start === data?.days.at(-1)?.start ? "Through latest block" : "",
   );
   drawHours(day);
+  renderThroughput();
 }
 
 const hourTargets = byId("hour-targets");
+const hourScale = byId("hour-scale", "button");
+let logarithmicHours = false;
+try {
+  logarithmicHours = localStorage.getItem("ironwood-hour-scale") === "log";
+} catch {
+  /* Optional preference. */
+}
+hourScale.setAttribute("aria-pressed", String(logarithmicHours));
 let chartDay: Day | undefined;
 let selectedHour: number | undefined;
 const chartTime = (day: Day, h: number) => date(day.start + h * 3600);
@@ -267,7 +278,10 @@ function drawHours(day: Day) {
     hourTargets.append(target);
     if (!count) return;
     const bar = document.createElementNS(svgNS, "rect");
-    const height = Math.max(1, (count / peak) * 78);
+    const ratio = logarithmicHours
+      ? Math.log1p(count) / Math.log1p(peak)
+      : count / peak;
+    const height = Math.max(1, ratio * 78);
     bar.setAttribute("x", String(h * 12 + 1));
     bar.setAttribute("width", "9");
     bar.setAttribute("y", String(81 - height));
@@ -283,6 +297,17 @@ function drawHours(day: Day) {
       [focusedHour]?.focus({ preventScroll: true });
   }
 }
+
+hourScale.addEventListener("click", () => {
+  logarithmicHours = !logarithmicHours;
+  hourScale.setAttribute("aria-pressed", String(logarithmicHours));
+  try {
+    localStorage.setItem("ironwood-hour-scale", logarithmicHours ? "log" : "linear");
+  } catch {
+    /* Optional preference. */
+  }
+  if (chartDay) drawHours(chartDay);
+});
 
 function showHourDetail(day: Day) {
   const peak = Math.max(...day.hours);
@@ -597,6 +622,7 @@ function drawCalendar() {
     write("peak-detail", "—");
     write("hour-coverage", "");
     write("calendar-period", "Waiting for the first Ironwood block");
+    renderThroughput();
     return;
   }
   const activation = data.activation_day ?? first.start;
@@ -697,46 +723,45 @@ function renderCommitments(d: Activity) {
 }
 
 const weekdayBars = byId("weekday-bars");
+const weekdayReset = byId("weekday-reset", "button");
 const weekdayHourRange = (peak: number) =>
   `${hour(peak)}:00–${hour((peak + 1) % 24)}:00`;
 
-function showWeekdayDetail() {
-  const weekdays = weekdaySummaries;
+function weekdayDetail(weekdays: WeekdaySummary[], selected?: number) {
   const completeDays = weekdays.reduce((sum, day) => sum + day.days, 0);
   const best = Math.max(...weekdays.map((w) => w.median ?? -1));
   const shown = weekdays.flatMap((summary, index) =>
-    (selectedWeekday === undefined
+    (selected === undefined
       ? summary.median === best
-      : index === selectedWeekday)
+      : index === selected)
       ? [{ ...summary, name: weekdayNames[index]! }]
       : [],
   );
-  write(
-    "weekday-heading",
-    selectedWeekday === undefined ? "Busiest weekday" : "Selected weekday",
-  );
-  write(
-    "weekday",
-    shown.length ? shown.map((day) => day.name).join(" / ") : "—",
-  );
   const peak = shown[0]?.peak_hour;
-  write(
-    "weekday-hour",
-    peak != null && shown.every((day) => day.peak_hour === peak)
+  const day = selected === undefined ? undefined : shown[0];
+  return {
+    heading: selected === undefined ? "Busiest weekday" : "Selected weekday",
+    name: shown.length ? shown.map((day) => day.name).join(" / ") : "—",
+    peak: peak != null && shown.every((day) => day.peak_hour === peak)
       ? weekdayHourRange(peak)
       : "—",
-  );
-  const day = selectedWeekday === undefined ? undefined : shown[0];
-  write(
-    "weekday-detail",
-    day
+    detail: day
       ? day.median === null
         ? `Awaiting a complete ${day.name}.`
         : `${number.format(day.median)} median transactions · ${day.days} complete ${day.name}${day.days === 1 ? "" : "s"}${day.peak_hour === null ? " · No typical peak hour" : ""}`
       : best >= 0
         ? `${number.format(best)} transactions on the median day · ${completeDays} complete indexed ${completeDays === 1 ? "day" : "days"}`
         : "Awaiting a complete day.",
-  );
+  };
+}
+
+function showWeekdayDetail() {
+  const summary = weekdayDetail(weekdaySummaries, selectedWeekday);
+  write("weekday-heading", summary.heading);
+  write("weekday", summary.name);
+  write("weekday-hour", summary.peak);
+  write("weekday-detail", summary.detail);
+  weekdayReset.disabled = selectedWeekday === undefined;
   for (const button of weekdayBars.querySelectorAll("button")) {
     button.setAttribute(
       "aria-pressed",
@@ -744,6 +769,12 @@ function showWeekdayDetail() {
     );
   }
 }
+
+weekdayReset.addEventListener("click", () => {
+  selectedWeekday = undefined;
+  showWeekdayDetail();
+  weekdayBars.querySelector<HTMLButtonElement>(".top")?.focus({ preventScroll: true });
+});
 
 weekdayBars.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
@@ -787,6 +818,27 @@ function renderWeekdays(weekdays: WeekdaySummary[]) {
     item.append(bar, label);
     weekdayBars.append(item);
   });
+  // Stack invisible variants in the same grid cells so selecting any day or
+  // resetting cannot resize the card, including when text wraps on mobile.
+  const summarySizes = byId("weekday-summary-sizes");
+  const detailSizes = byId("weekday-detail-sizes");
+  summarySizes.replaceChildren();
+  detailSizes.replaceChildren();
+  for (const weekday of [undefined, ...weekdays.keys()]) {
+    const summary = weekdayDetail(weekdays, weekday);
+    const sizing = byId("weekday-summary").cloneNode(true) as HTMLElement;
+    sizing.querySelector("h2")!.textContent = summary.heading;
+    sizing.querySelector("strong")!.textContent = summary.name;
+    sizing.querySelector(".weekday-hour")!.textContent = summary.peak;
+    sizing.removeAttribute("id");
+    for (const node of sizing.querySelectorAll("[id]")) node.removeAttribute("id");
+    sizing.querySelector('[role="status"]')?.removeAttribute("role");
+    summarySizes.append(sizing);
+    const detail = document.createElement("p");
+    detail.className = "detail";
+    detail.textContent = summary.detail;
+    detailSizes.append(detail);
+  }
   showWeekdayDetail();
   if (focusedWeekday !== undefined) {
     weekdayBars
@@ -805,6 +857,7 @@ async function refreshWeekdays() {
     write("weekday-zone", zoneCity(zone));
     byId("weekday-zone").title = zone;
     if (zone !== "UTC") {
+      weekdayReset.disabled = true;
       write("weekday", "—");
       write("weekday-hour", "—");
       weekdayBars.replaceChildren();
@@ -835,6 +888,51 @@ async function refreshWeekdays() {
   } finally {
     if (weekdayRequest === request) weekdayRequest = undefined;
   }
+}
+
+function renderThroughput() {
+  write("tps-average-label", allTime ? "All-time average" : "Day average");
+  for (const id of ["tps-hour", "tps-day"]) {
+    write(id, "—");
+    byId(id).removeAttribute("title");
+  }
+  if (!data || data.activation_day === null || selected === undefined) {
+    write("tps-period", "Awaiting indexed history");
+    return;
+  }
+  const dayLabel = (time: number) => `${shortDate.format(date(time))}, ${yearOf(time)}`;
+  const from = allTime ? data.activation_day + daySeconds : selected;
+  const to = allTime ? data.checkpoint.time : Math.min(selected + daySeconds, data.checkpoint.time);
+  if (!allTime && selected === data.activation_day) {
+    write("tps-period", `${dayLabel(selected)} UTC · Launch day is partial`);
+    return;
+  }
+  if (Math.floor(to / 3600) * 3600 <= from) {
+    write("tps-period", "Awaiting a complete indexed hour");
+    return;
+  }
+  if (allTime) {
+    const first = data.days[0]?.start ?? to;
+    for (let year = yearOf(from); year <= yearOf(to - 1); year++) {
+      if (Math.max(from, yearStart(year)) < first) void loadArchive(year);
+    }
+  }
+  const summary = summarizeThroughput(calendarDays.values(), from, to);
+  if (!summary) {
+    write("tps-period", allTime ? "Loading complete indexed history…"
+      : `${dayLabel(selected)} UTC · Awaiting a complete indexed hour`);
+    return;
+  }
+  write("tps-hour", tps.format(summary.peak));
+  write("tps-day", tps.format(summary.average));
+  byId("tps-hour").title = summary.peakHour === undefined
+    ? "No transactions in this period"
+    : `${dayLabel(summary.peakHour)} · ${clock(summary.peakHour)} – ${clock(summary.peakHour + 3600)}`;
+  byId("tps-day").title = `${transactionCount(summary.transactions)} across ${(summary.end - summary.start) / 3600} complete indexed hours`;
+  const period = allTime
+    ? `${dayLabel(summary.start)} – ${dayLabel(summary.end - 1)} UTC`
+    : `${dayLabel(selected)} UTC`;
+  write("tps-period", `${period} · ${allTime || summary.end < selected + daySeconds ? `Through ${clock(summary.end)}` : "24 complete hours"}`);
 }
 
 function render(d: Activity) {

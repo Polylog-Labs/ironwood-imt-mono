@@ -74,6 +74,15 @@ pub(crate) fn routes() -> Router<AppState> {
             }),
         )
         .route(
+            "/activity-model.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!(concat!(env!("OUT_DIR"), "/web/activity-model.js")),
+                )
+            }),
+        )
+        .route(
             "/navigation.js",
             get(|| async {
                 asset(

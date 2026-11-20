@@ -18,6 +18,7 @@ export const webAssets = [
   ...staticAssets,
   "dashboard.js",
   "activity.js",
+  "activity-model.js",
   "navigation.js",
   "tree.js",
   "tree-model.js",
