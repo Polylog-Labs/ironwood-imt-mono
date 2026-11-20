@@ -201,9 +201,14 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 .calendar-foot {
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 4px 12px;
   margin-top: 8px;
   font-size: 11px;
+}
+#ironwood-launch {
+  margin-right: auto;
 }
 .legend {
   gap: 4px;
@@ -517,6 +522,11 @@
 .weekday-result strong {
   font-size: 32px;
 }
+.weekday-peak {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
 #weekday-hour {
   color: var(--acid);
   font: 14px var(--mono);
@@ -525,18 +535,29 @@
 .weekday-bars {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: clamp(4px, 0.6vw, 10px);
   min-height: 112px;
   margin-top: 12px;
 }
-.weekday-bars > div {
+.weekday-bars > button {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 6px;
+  min-width: 0;
+  padding: 4px 2px;
+  border-color: transparent;
   text-align: center;
   font: 10px var(--mono);
   color: var(--muted);
+}
+.weekday-bars > button[aria-pressed="true"] {
+  color: var(--acid);
+  border-color: var(--acid);
+  background: #c0f7800d;
+}
+.weekday-bars > button:focus-visible {
+  outline-offset: 1px;
 }
 .weekday-bar {
   display: flex;

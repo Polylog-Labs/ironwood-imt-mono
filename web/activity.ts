@@ -103,6 +103,8 @@ let selected: number | undefined;
 let requestPending = false;
 let weekdayZone: string | undefined;
 let weekdayRequest: AbortController | undefined;
+let weekdaySummaries: WeekdaySummary[] = [];
+let selectedWeekday: number | undefined;
 const calendar = byId("calendar");
 const calendarScroll = byId("calendar-scroll");
 const daySeconds = 86400;
@@ -572,6 +574,11 @@ function yearGrid(year: number, activation: number, latest: number, breaks: numb
 
 function drawCalendar() {
   if (!data) return;
+  const launch = byId("ironwood-launch");
+  launch.hidden = data.activation_day === null;
+  launch.textContent = data.activation_day === null
+    ? ""
+    : `Ironwood launched ${shortDate.format(date(data.activation_day))}, ${yearOf(data.activation_day)}`;
   const days = data.days;
   const first = days[0], last = days.at(-1);
   archiveObserver.disconnect();
@@ -674,6 +681,12 @@ calendar.addEventListener("keydown", (e) => {
 });
 function renderCommitments(d: Activity) {
   const c = d.commitments;
+  const days = Math.min(d.days.length, 365);
+  write(
+    "commitment-period",
+    days ? `Commitments across ${days} indexed ${days === 1 ? "day" : "days"}`
+      : "Commitments in indexed days",
+  );
   write("calendar-commitments", number.format(c.from_calendar));
   write("coinbase-commitments", number.format(c.from_coinbase));
   write("earlier-commitments", number.format(c.from_earlier));
@@ -683,53 +696,103 @@ function renderCommitments(d: Activity) {
   write("commitment-block", `At block ${number.format(d.checkpoint.height)}`);
 }
 
-function renderWeekdays(weekdays: WeekdaySummary[]) {
+const weekdayBars = byId("weekday-bars");
+const weekdayHourRange = (peak: number) =>
+  `${hour(peak)}:00–${hour((peak + 1) % 24)}:00`;
+
+function showWeekdayDetail() {
+  const weekdays = weekdaySummaries;
+  const completeDays = weekdays.reduce((sum, day) => sum + day.days, 0);
   const best = Math.max(...weekdays.map((w) => w.median ?? -1));
-  const leaders = weekdays.flatMap((summary, index) =>
-    summary.median === best
-      ? [{ name: weekdayNames[index], hour: summary.peak_hour }]
+  const shown = weekdays.flatMap((summary, index) =>
+    (selectedWeekday === undefined
+      ? summary.median === best
+      : index === selectedWeekday)
+      ? [{ ...summary, name: weekdayNames[index]! }]
       : [],
   );
   write(
-    "weekday",
-    leaders.length ? leaders.map((leader) => leader.name).join(" / ") : "—",
+    "weekday-heading",
+    selectedWeekday === undefined ? "Busiest weekday" : "Selected weekday",
   );
-  const peak = leaders[0]?.hour;
+  write(
+    "weekday",
+    shown.length ? shown.map((day) => day.name).join(" / ") : "—",
+  );
+  const peak = shown[0]?.peak_hour;
   write(
     "weekday-hour",
-    peak != null && leaders.every((leader) => leader.hour === peak)
-      ? `${hour(peak)}:00–${hour(peak + 1)}:00`
-      : "",
+    peak != null && shown.every((day) => day.peak_hour === peak)
+      ? weekdayHourRange(peak)
+      : "—",
   );
-  const bars = byId("weekday-bars");
-  bars.replaceChildren();
+  const day = selectedWeekday === undefined ? undefined : shown[0];
+  write(
+    "weekday-detail",
+    day
+      ? day.median === null
+        ? `Awaiting a complete ${day.name}.`
+        : `${number.format(day.median)} median transactions · ${day.days} complete ${day.name}${day.days === 1 ? "" : "s"}${day.peak_hour === null ? " · No typical peak hour" : ""}`
+      : best >= 0
+        ? `${number.format(best)} transactions on the median day · ${completeDays} complete indexed ${completeDays === 1 ? "day" : "days"}`
+        : "Awaiting a complete day.",
+  );
+  for (const button of weekdayBars.querySelectorAll("button")) {
+    button.setAttribute(
+      "aria-pressed",
+      String(Number(button.dataset.weekday) === selectedWeekday),
+    );
+  }
+}
+
+weekdayBars.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element)) return;
+  const button = event.target.closest<HTMLButtonElement>("button[data-weekday]");
+  if (!button || !weekdayBars.contains(button)) return;
+  const weekday = Number(button.dataset.weekday);
+  selectedWeekday = selectedWeekday === weekday ? undefined : weekday;
+  showWeekdayDetail();
+});
+
+function renderWeekdays(weekdays: WeekdaySummary[]) {
+  weekdaySummaries = weekdays;
+  const best = Math.max(...weekdays.map((w) => w.median ?? -1));
+  const active = document.activeElement;
+  const focusedWeekday =
+    active instanceof HTMLButtonElement && weekdayBars.contains(active)
+      ? Number(active.dataset.weekday)
+      : undefined;
+  weekdayBars.replaceChildren();
   weekdays.forEach((w, i) => {
     const name = weekdayNames[i]!;
-    const item = document.createElement("div");
-    const meter = document.createElement("meter");
-    meter.className = "sr-only";
-    meter.min = 0;
-    meter.max = Math.max(1, best);
-    meter.value = w.median ?? 0;
-    const text = `${name} · ${w.median === null ? "Awaiting complete days" : number.format(w.median) + " median transactions"} · ${w.days} days`;
-    meter.setAttribute("aria-label", text);
+    const item = document.createElement("button");
+    item.type = "button";
+    item.dataset.weekday = String(i);
+    const peak = w.peak_hour === null
+      ? "No typical peak hour"
+      : `Typical peak hour ${weekdayHourRange(w.peak_hour)} ${weekdayZone}`;
+    const text = `${name} · ${w.median === null ? "Awaiting complete days" : number.format(w.median) + " median transactions"} · ${w.days} complete days · ${peak}`;
+    item.setAttribute("aria-label", text);
     const bar = document.createElement("span");
     bar.className = "weekday-bar";
-    bar.style.setProperty("--level", `${(meter.value / meter.max) * 100}%`);
+    bar.style.setProperty(
+      "--level",
+      `${((w.median ?? 0) / Math.max(1, best)) * 100}%`,
+    );
     bar.setAttribute("aria-hidden", "true");
     const label = document.createElement("span");
     label.textContent = name.slice(0, 3);
     item.title = text;
     if (w.median === best) item.className = "top";
-    item.append(meter, bar, label);
-    bars.append(item);
+    item.append(bar, label);
+    weekdayBars.append(item);
   });
-  write(
-    "weekday-detail",
-    best >= 0
-      ? `${number.format(best)} transactions on the median day · Last 365 days`
-      : "Awaiting a complete day.",
-  );
+  showWeekdayDetail();
+  if (focusedWeekday !== undefined) {
+    weekdayBars
+      .querySelectorAll("button")
+      [focusedWeekday]?.focus({ preventScroll: true });
+  }
 }
 
 async function refreshWeekdays() {
@@ -743,8 +806,8 @@ async function refreshWeekdays() {
     byId("weekday-zone").title = zone;
     if (zone !== "UTC") {
       write("weekday", "—");
-      write("weekday-hour", "");
-      byId("weekday-bars").replaceChildren();
+      write("weekday-hour", "—");
+      weekdayBars.replaceChildren();
       write("weekday-detail", "Calculating local weekday activity…");
     }
   }

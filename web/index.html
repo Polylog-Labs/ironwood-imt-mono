@@ -69,6 +69,7 @@
             </div>
           </div>
           <div class="calendar-foot">
+            <span id="ironwood-launch" hidden></span>
             <span class="legend"
               >Less <i data-level="0"></i><i data-level="1"></i
               ><i data-level="2"></i><i data-level="3"></i
@@ -190,18 +191,23 @@
         </section>
         <section class="week-panel">
           <div class="panel-head">
-            <h2>Busiest weekday</h2>
+            <h2 id="weekday-heading">Busiest weekday</h2>
             <span class="unit-label" id="weekday-zone">UTC</span>
           </div>
-          <div class="weekday-result">
+          <div class="weekday-result" role="status" aria-atomic="true">
             <strong id="weekday">—</strong>
-            <span id="weekday-hour" title="Typical peak hour"></span>
+            <div class="weekday-peak">
+              <small>Typical peak hour</small>
+              <span id="weekday-hour">—</span>
+            </div>
           </div>
           <div
             id="weekday-bars"
             class="weekday-bars"
-            aria-label="Median transactions per weekday"
+            role="group"
+            aria-label="Select a weekday to see its typical peak hour"
           ></div>
+          <p class="detail">Select a day to see its typical peak hour.</p>
           <p class="detail" id="weekday-detail">
             Median daily count across complete indexed days.
           </p>
@@ -213,7 +219,7 @@
       >
         <dl>
           <div>
-            <dt>Commitments in the last 365 days</dt>
+            <dt id="commitment-period">Commitments in indexed days</dt>
             <dd>
               <span id="calendar-commitments">—</span>
               <small id="commitment-transactions"
@@ -315,8 +321,13 @@
           Amounts paid between shielded users remain private.
         </p>
         <p>
-          Weekday rankings compare median transaction counts per complete UTC
-          day over the indexed year. The average wait for first confirmation
+          Weekday rankings compare median transaction counts per complete day
+          in the selected time zone, using available history since Ironwood’s
+          launch (up to one year). Select any weekday to see the hour with the
+          highest median transaction count across its
+          complete indexed days. Tied peak hours use the earliest hour; a peak
+          is unavailable when every hour has a zero median or no complete days
+          are indexed. The average wait for first confirmation
           uses the time between seeing a pending transaction and indexing its
           block. The first-to-tenth interval measures how long nine more blocks
           take after that first block. Both timing figures cover the last seven
