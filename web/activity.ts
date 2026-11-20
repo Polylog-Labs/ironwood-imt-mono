@@ -16,6 +16,8 @@ interface Activity {
   checkpoint: { time: number; height: number };
   days: Day[];
   activation_day: number | null;
+  flow_history?: { transactions: number; decoded: number };
+  flow_worker?: "idle" | "decoding" | "retrying";
   weekdays: WeekdaySummary[];
   commitments: {
     from_calendar: number;
@@ -23,7 +25,6 @@ interface Activity {
     from_earlier: number;
     leaves: number;
     transactions: number;
-    most_common: number[];
   };
   load: {
     blocks: number;
@@ -44,18 +45,20 @@ interface WeekdaySummary {
   median: number | null;
   peak_hour: number | null;
 }
-interface DailyFlows {
+interface PoolFlows {
   transactions: number;
   checked: number;
-  ironwood_only: number;
   in_count: number;
   out_count: number;
+  total_in_zat: number;
+  total_out_zat: number;
   median_in_zat: number | null;
   median_out_zat: number | null;
 }
 
 const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const amount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 9 });
+const roundedAmount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 const date = (seconds: number) => new Date(seconds * 1000);
 const shortDate = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
@@ -113,11 +116,28 @@ const poolPage = byId("pool-view");
 const viewActive = () => !poolPage.hidden && !document.hidden;
 const svgNS = "http://www.w3.org/2000/svg";
 
-let flowDay: number | undefined;
+const dailyFlows = byId("flow-daily", "button");
+const allTimeFlows = byId("flow-all-time", "button");
+let allTime = false;
+let loadedFlowScope: number | "all-time" | undefined;
 let flowRequest: AbortController | undefined;
-function renderFlows(flows?: DailyFlows) {
+function writeFlowTotal(id: string, zat?: number) {
+  const element = byId(id);
+  if (zat === undefined) {
+    element.textContent = "—";
+    element.removeAttribute("title");
+    return;
+  }
+  const zec = zat / 1e8;
+  element.textContent = (zec < 1 ? amount : roundedAmount).format(zec);
+  element.title = `${amount.format(zec)} ZEC`;
+}
+
+function renderFlows(flows?: PoolFlows) {
   const formatMedian = (zat?: number | null) =>
     zat == null ? "—" : amount.format(zat / 1e8);
+  writeFlowTotal("total-in", flows?.total_in_zat);
+  writeFlowTotal("total-out", flows?.total_out_zat);
   write("median-in", formatMedian(flows?.median_in_zat));
   write("median-out", formatMedian(flows?.median_out_zat));
   write(
@@ -130,53 +150,56 @@ function renderFlows(flows?: DailyFlows) {
   );
 }
 
-async function showFlows(day?: Day) {
-  if (flowDay !== day?.start) {
+async function showFlows() {
+  const scope = allTime ? "all-time" : selected;
+  const period = scope === "all-time" ? "All indexed history"
+    : scope === undefined ? ""
+    : `${shortDate.format(date(scope))}, ${yearOf(scope)} UTC`;
+  dailyFlows.disabled = selected === undefined;
+  dailyFlows.setAttribute("aria-pressed", String(!allTime));
+  allTimeFlows.setAttribute("aria-pressed", String(allTime));
+  if (loadedFlowScope !== scope) {
     flowRequest?.abort();
     flowRequest = undefined;
-    flowDay = day?.start;
-    write(
-      "flow-date",
-      day ? `${shortDate.format(date(day.start))} UTC · ZEC` : "ZEC",
-    );
+    loadedFlowScope = scope;
+    write("flow-date", period ? `${period} · ZEC` : "ZEC");
     renderFlows();
-    write(
-      "flow-window",
-      day ? "Loading pool flows…" : "Waiting for indexed dates.",
-    );
   }
-  if (!day || flowRequest) return;
+  if (scope === undefined || flowRequest) return;
   const request = new AbortController();
   flowRequest = request;
   try {
-    const response = await fetch(`/v1/activity/flows/${day.start}`, {
+    const response = await fetch(`/v1/activity/flows/${scope}`, {
       cache: "no-store",
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(12000)]),
     });
-    if (!response.ok) throw new Error("Daily flows unavailable");
-    const flows = (await response.json()) as DailyFlows;
+    if (!response.ok) throw new Error("Pool flows unavailable");
+    const flows = (await response.json()) as PoolFlows;
     if (request.signal.aborted) return;
     renderFlows(flows);
-    const coverage = `${number.format(flows.checked)} of ${number.format(flows.transactions)} transactions checked`;
-    write(
-      "flow-window",
-      flows.checked < flows.transactions
-        ? `Indexing · ${coverage}`
-        : flows.transactions === 0
-          ? "No confirmed transactions"
-          : `${number.format(flows.ironwood_only)} Ironwood-only transactions excluded`,
-    );
+    const partial = flows.checked < flows.transactions;
+    write("flow-date", partial && scope === "all-time" ? "Decoded history · ZEC"
+      : `${period} · ZEC${partial ? " · Partial" : ""}`);
   } catch {
     if (!request.signal.aborted)
-      write("flow-window", "Pool flows unavailable · Retrying");
+      write("flow-date", "Pool flows unavailable · Retrying");
   } finally {
     if (flowRequest === request) flowRequest = undefined;
   }
 }
 
+dailyFlows.addEventListener("click", () => {
+  allTime = false;
+  void showFlows();
+});
+allTimeFlows.addEventListener("click", () => {
+  allTime = true;
+  void showFlows();
+});
+
 function showDay(day: Day) {
   selected = day.start;
-  void showFlows(day);
+  void showFlows();
   for (const button of calendar.querySelectorAll("button")) {
     const active = Number(button.dataset.start) === selected;
     button.setAttribute("aria-pressed", String(active));
@@ -309,18 +332,36 @@ const zoneToggle = byId("timezone-toggle", "button");
 const zonePopup = byId("timezone-popup");
 const zoneSearch = byId("timezone-search", "input");
 const zoneOptions = byId("timezone-options");
-const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const cityAliases = new Map([
+  ["Asia/Kolkata", { label: "Delhi, Mumbai", search: "new delhi calcutta india" }],
+  ["Asia/Shanghai", { label: "Beijing", search: "bejing" }],
+  ["Asia/Tokyo", { label: "", search: "tokio" }],
+  ["America/New_York", { label: "Miami", search: "nyc new york city" }],
+]);
+const canonicalZone = (zone: string) =>
+  zone === "Asia/Calcutta" ? "Asia/Kolkata" : zone;
+const localZone = canonicalZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
 const timeZones = [
-  ...new Set(["UTC", localZone, ...Intl.supportedValuesOf("timeZone")]),
+  ...new Set(
+    ["UTC", localZone, ...Intl.supportedValuesOf("timeZone"), ...cityAliases.keys()]
+      .map(canonicalZone),
+  ),
 ];
-const zoneName = (zone: string) =>
-  zone.replaceAll("_", " ").replaceAll("/", " / ");
-const zoneCity = (zone: string) => zone.split("/").at(-1)!.replaceAll("_", " ");
+const zoneName = (zone: string) => {
+  const name = zone.replaceAll("_", " ").replaceAll("/", " / ");
+  const aliases = cityAliases.get(zone)?.label;
+  return aliases ? `${name} · ${aliases}` : name;
+};
+const zoneCity = (zone: string) =>
+  zone === "Asia/Kolkata" ? "Delhi / Mumbai"
+    : zone === "Asia/Shanghai" ? "Beijing / Shanghai"
+    : zone.split("/").at(-1)!.replaceAll("_", " ");
 let chartZone = "UTC";
 let zoneClock: Intl.DateTimeFormat;
 let zoneTimestamp: Intl.DateTimeFormat;
 
 function setChartZone(zone: string) {
+  zone = canonicalZone(zone);
   const timeOptions: Intl.DateTimeFormatOptions = {
     timeZone: zone,
     hour: "2-digit",
@@ -356,7 +397,8 @@ function drawZoneOptions() {
       zone === localZone && zone !== "UTC" ? `Local time · ${name}` : name;
     if (
       !label.toLowerCase().includes(query) &&
-      !zone.toLowerCase().includes(query)
+      !zone.toLowerCase().includes(query) &&
+      !cityAliases.get(zone)?.search.includes(query)
     )
       continue;
     const button = document.createElement("button");
@@ -518,6 +560,7 @@ function drawCalendar() {
   archiveObserver.disconnect();
   calendarDays.clear();
   if (!first || !last) {
+    selected = undefined;
     void showFlows();
     chartDay = undefined;
     selectedHour = undefined;
@@ -588,7 +631,10 @@ function drawCalendar() {
 calendar.addEventListener("click", (e) => {
   if (!(e.target instanceof HTMLButtonElement)) return;
   const day = calendarDays.get(Number(e.target.dataset.start));
-  if (day) showDay(day);
+  if (day) {
+    allTime = false;
+    showDay(day);
+  }
 });
 calendar.addEventListener("keydown", (e) => {
   const delta: Record<string, number> = {
@@ -622,13 +668,6 @@ function renderCommitments(d: Activity) {
   write("tree-commitments", number.format(c.leaves));
   write("commitment-transactions", `From ${transactionCount(c.transactions)}`);
   write("commitment-block", `At block ${number.format(d.checkpoint.height)}`);
-  const sizes = c.most_common.map((n) => number.format(n)).join(" or ");
-  write(
-    "commitment-detail",
-    sizes
-      ? `Most common · ${sizes} ${sizes === "1" ? "commitment" : "commitments"} per transaction`
-      : "",
-  );
 }
 
 function renderWeekdays(weekdays: WeekdaySummary[]) {
@@ -655,14 +694,21 @@ function renderWeekdays(weekdays: WeekdaySummary[]) {
     const name = weekdayNames[i]!;
     const item = document.createElement("div");
     const meter = document.createElement("meter");
+    meter.className = "sr-only";
     meter.min = 0;
     meter.max = Math.max(1, best);
     meter.value = w.median ?? 0;
     const text = `${name} · ${w.median === null ? "Awaiting complete days" : number.format(w.median) + " median transactions"} · ${w.days} days`;
     meter.setAttribute("aria-label", text);
+    const bar = document.createElement("span");
+    bar.className = "weekday-bar";
+    bar.style.setProperty("--level", `${(meter.value / meter.max) * 100}%`);
+    bar.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.textContent = name.slice(0, 3);
     item.title = text;
     if (w.median === best) item.className = "top";
-    item.append(meter, name.slice(0, 3));
+    item.append(meter, bar, label);
     bars.append(item);
   });
   write(
@@ -809,6 +855,21 @@ function render(d: Activity) {
     "connection",
     `${d.network === "main" ? "Mainnet" : d.network} · Block ${number.format(d.checkpoint.height)} · ${d.caught_up ? "Synced" : "Indexed"} ${blockDate}${clock(d.checkpoint.time)}`,
   );
+  const history = d.flow_history;
+  const indicator = byId("flow-history");
+  indicator.hidden = !history?.transactions;
+  if (history?.transactions) {
+    const complete = history.decoded === history.transactions;
+    const label = complete ? "Historical flows decoded"
+      : d.flow_worker === "retrying" ? "Historical flow decoding retrying"
+      : d.flow_worker === "decoding" ? "Decoding historical flows"
+      : "Historical flows incomplete";
+    const progress = complete ? number.format(history.transactions)
+      : `${number.format(history.decoded)} of ${number.format(history.transactions)}`;
+    indicator.dataset.decoding = String(!complete && d.flow_worker === "decoding");
+    const status = `${label} · ${progress} transactions`;
+    if (indicator.textContent !== status) indicator.textContent = status;
+  }
 }
 
 let interval = 15000;
@@ -832,6 +893,7 @@ async function refresh() {
     render((await res.json()) as Activity);
     interval = 15000;
   } catch {
+    byId("flow-history").hidden = true;
     write(
       "connection",
       data

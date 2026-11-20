@@ -17,9 +17,14 @@
 .intro h1 + p {
   margin-top: 10px;
 }
-#connection {
+.activity-status {
+  display: grid;
+  gap: 3px;
   font: 12px/1.7 var(--mono);
   text-align: right;
+}
+.intro #flow-history[data-decoding="true"] {
+  color: var(--acid);
 }
 .calendar-panel,
 .insights,
@@ -29,15 +34,13 @@
   background: linear-gradient(115deg, #151d16, #101511 75%);
   border-radius: 6px;
 }
-.calendar-panel,
-.insights {
+.calendar-panel {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
 }
 .calendar-overview,
 .daily,
-.week-panel,
-.flow-panel {
+.week-panel {
   padding: clamp(16px, 1.7vw, 22px);
   min-width: 0;
 }
@@ -426,13 +429,65 @@
   margin: 8px 0 0;
 }
 .insights {
+  --insight-padding: clamp(16px, 1.7vw, 22px);
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   margin-top: 15px;
+}
+.flow-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+}
+.week-panel {
+  display: flex;
+  flex-direction: column;
+}
+.flow-panel > .panel-head {
+  padding: 8px var(--insight-padding);
+  border-bottom: 1px solid var(--border);
+}
+.flow-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  min-width: 0;
+}
+.flow-date {
+  margin: 0;
+}
+.flow-scope {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.flow-scope button {
+  border: 0;
+  padding: 4px 8px;
+  font: 12px/1.4 var(--mono);
+}
+.flow-scope button[aria-pressed="true"] {
+  background: #2d3a2b;
+  color: var(--acid);
+}
+.flow-summaries {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.flow-summaries > section {
+  min-width: 0;
+  padding: 14px var(--insight-padding);
+}
+.flow-summaries > section + section {
+  border-left: 1px solid var(--border);
 }
 .flow-pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin: 12px 0 0;
-  gap: 16px;
+  margin: 9px 0 0;
+  gap: 10px;
 }
 .flow-pair h3 {
   margin: 0 0 3px;
@@ -442,6 +497,9 @@
   display: block;
   font-size: clamp(20px, 2vw, 29px);
   overflow-wrap: anywhere;
+}
+.flow-totals strong {
+  font-size: clamp(24px, 2.24vw, 36px);
 }
 .flow-pair small,
 .network-panel small {
@@ -465,36 +523,35 @@
   white-space: nowrap;
 }
 .weekday-bars {
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 5px;
-  max-width: 360px;
+  gap: clamp(4px, 0.6vw, 10px);
+  min-height: 112px;
+  margin-top: 12px;
 }
-.weekday-bars div {
+.weekday-bars > div {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 6px;
+  text-align: center;
   font: 10px var(--mono);
   color: var(--muted);
 }
-.weekday-bars meter {
-  display: block;
-  width: 100%;
-  height: 6px;
-  background: #263027;
-  margin-bottom: 4px;
-  border: 0;
-  appearance: none;
+.weekday-bar {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
 }
-.weekday-bars meter::-webkit-meter-bar {
-  background: #263027;
-  border: none;
-  border-radius: 0;
-}
-.weekday-bars meter::-webkit-meter-optimum-value {
+.weekday-bar::before {
+  content: "";
+  width: min(100%, 38px);
+  height: var(--level);
   background: #628345;
+  border-radius: 3px 3px 0 0;
 }
-.weekday-bars meter::-moz-meter-bar {
-  background: #628345;
-}
-.weekday-bars .top meter::-webkit-meter-optimum-value {
+.weekday-bars .top .weekday-bar::before {
   background: var(--acid);
 }
 .network-panel {
@@ -561,12 +618,29 @@
     align-items: flex-start;
     flex-direction: column;
   }
-  #connection {
+  .activity-status {
     text-align: left;
   }
 }
 @media (max-width: 480px) {
+  .flow-summaries {
+    grid-template-columns: 1fr;
+  }
+  .flow-summaries > section + section {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
   .calendar-foot {
     font-size: 10px;
+  }
+}
+@media (min-width: 1400px), (max-width: 480px) {
+  .flow-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 350px) {
+  .flow-totals strong {
+    font-size: 21px;
   }
 }

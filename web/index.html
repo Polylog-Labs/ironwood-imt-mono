@@ -38,7 +38,10 @@
           <h1>Ironwood activity</h1>
           <p>Confirmed transactions in the Ironwood shielded pool.</p>
         </div>
-        <p id="connection" role="status">Connecting to the indexer…</p>
+        <div class="activity-status">
+          <p id="connection" role="status">Connecting to the indexer…</p>
+          <p id="flow-history" role="status" hidden></p>
+        </div>
       </section>
       <noscript
         ><p class="notice">
@@ -49,7 +52,7 @@
         <div class="calendar-overview">
           <div class="headline-count">
             <strong id="calendar-total">—</strong>
-            <span>confirmed transactions involving Ironwood</span>
+            <span>total confirmed transactions involving Ironwood</span>
           </div>
           <p class="period" id="calendar-period">Waiting for indexed dates</p>
           <div class="calendar-layout">
@@ -145,24 +148,45 @@
       <div class="insights">
         <section class="flow-panel" aria-labelledby="flows-heading">
           <div class="panel-head">
-            <h2 id="flows-heading">Pool flows</h2>
-            <span class="unit-label" id="flow-date">ZEC</span>
-          </div>
-          <div class="flow-pair">
-            <div>
-              <h3>Median in</h3>
-              <strong id="median-in">—</strong
-              ><small id="count-in">Inflows</small>
+            <div class="flow-heading">
+              <h2 id="flows-heading">Pool flows</h2>
+              <p class="unit-label flow-date" id="flow-date">ZEC</p>
             </div>
-            <div>
-              <h3>Median out</h3>
-              <strong id="median-out">—</strong
-              ><small id="count-out">Outflows</small>
+            <div class="flow-scope" role="group" aria-label="Pool flow period">
+              <button id="flow-daily" type="button" aria-pressed="true" disabled>Daily</button>
+              <button id="flow-all-time" type="button" aria-pressed="false">All time</button>
             </div>
           </div>
-          <p class="detail" id="flow-window" aria-live="polite">
-            Waiting for indexed pool flows.
-          </p>
+          <div class="flow-summaries">
+            <section class="flow-totals" aria-labelledby="flow-totals-heading">
+              <h2 id="flow-totals-heading">Total flows</h2>
+              <div class="flow-pair">
+                <div>
+                  <h3>Inflow</h3>
+                  <strong id="total-in">—</strong>
+                </div>
+                <div>
+                  <h3>Outflow</h3>
+                  <strong id="total-out">—</strong>
+                </div>
+              </div>
+            </section>
+            <section aria-labelledby="flow-medians-heading">
+              <h2 id="flow-medians-heading">Median flows</h2>
+              <div class="flow-pair">
+                <div>
+                  <h3>Inflow</h3>
+                  <strong id="median-in">—</strong
+                  ><small id="count-in">Inflows</small>
+                </div>
+                <div>
+                  <h3>Outflow</h3>
+                  <strong id="median-out">—</strong
+                  ><small id="count-out">Outflows</small>
+                </div>
+              </div>
+            </section>
+          </div>
         </section>
         <section class="week-panel">
           <div class="panel-head">
@@ -195,7 +219,6 @@
               <small id="commitment-transactions"
                 >From confirmed transactions</small
               >
-              <small id="commitment-detail"></small>
             </dd>
           </div>
           <div>
@@ -225,7 +248,7 @@
       <section class="network-panel" aria-label="Network statistics">
         <dl>
           <div>
-            <dt>Last complete hour</dt>
+            <dt>Number of txs in the last hour</dt>
             <dd>
               <span id="last-hour">—</span>
               <small id="hour-baseline">Confirmed transactions</small>
@@ -282,13 +305,14 @@
           quarter of active days in the displayed range.
         </p>
         <p>
-          Pool flows use the signed net Ironwood value of each decoded
-          transaction mined on the selected UTC date. Inflows and outflows have
-          separate medians. The panel shows how much of the day has been indexed
-          for flows. Ironwood-only transactions can pay a miner fee from the
-          pool and are excluded from both groups. A mixed transaction’s net
-          value can include its fee. Amounts paid between shielded users remain
-          private.
+          Pool flows use the net Ironwood value of each decoded transaction.
+          Daily covers the selected UTC date. All time covers indexed history.
+          Inflows and outflows have separate totals and medians. The historical
+          decoding status shows how much history has been checked. Fees paid from Ironwood
+          contribute to the transaction’s net pool change, including when the
+          transaction uses only Ironwood. The cross-pool count covers transactions
+          that touch another pool and change Ironwood’s public balance.
+          Amounts paid between shielded users remain private.
         </p>
         <p>
           Weekday rankings compare median transaction counts per complete UTC

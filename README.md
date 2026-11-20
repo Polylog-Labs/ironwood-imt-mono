@@ -9,7 +9,7 @@ The explorer displays the **depth-32 note commitment tree**, with capacity for 4
 ## Features
 
 - The home page shows full calendar years with selectable dates, hourly peaks, and weekday rankings in the selected time zone.
-- Daily pool flow medians use public net value changes from cross-pool transactions. The page also tracks pool balance, pending transactions, confirmation timing, and recent shielded block usage.
+- Daily pool flow totals and medians use public net value changes, including fees paid from Ironwood. The page also tracks pool balance, pending transactions, confirmation timing, and recent shielded block usage.
 - Capacity used, rolling 24-hour growth, estimated fill date, and pending commitments.
 - A draggable, zoomable tree with the latest leaf's path highlighted in blue.
 - Leaf commitments, containing block timestamps in UTC, and verified subtree hashes.

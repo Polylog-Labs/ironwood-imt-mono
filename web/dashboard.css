@@ -279,22 +279,19 @@ progress::-webkit-progress-value {
 progress::-moz-progress-bar {
   background: var(--acid);
 }
-.root-strip {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  min-height: 66px;
-  margin-bottom: 26px;
-  border-bottom: 1px solid var(--border);
-  font: 10px var(--mono);
+.tree-root {
+  max-width: 100%;
+  text-align: right;
 }
 .root-label {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-bottom: 4px;
   white-space: nowrap;
   color: var(--muted);
-  font-size: 9px;
+  font: 9px var(--mono);
   letter-spacing: 1px;
 }
 .mini-diamond {
@@ -303,22 +300,25 @@ progress::-moz-progress-bar {
   background: var(--acid);
   transform: rotate(45deg);
 }
-.root-strip code {
+.tree-root code {
+  display: block;
   font: 11px var(--mono);
   color: #c0ccb8;
   overflow-wrap: anywhere;
-  flex: 1;
 }
 .explorer {
+  margin-top: 26px;
   border: 1px solid #33412e;
   background: #0e130e;
 }
 .explorer-header {
-  height: 63px;
-  padding: 0 24px;
+  min-height: 63px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
   border-bottom: 1px solid var(--border);
 }
 .tree-title {
@@ -363,17 +363,17 @@ progress::-moz-progress-bar {
   background: #8cdef2;
   box-shadow: 0 0 6px #8cdef244;
 }
-.legend-depth {
-  border-left: 1px solid var(--border);
-  padding-left: 18px;
-  color: var(--dim);
-}
 .explorer-toolbar {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--border);
+}
+.explorer-toolbar .legend {
+  margin-inline-start: auto;
 }
 .view-buttons {
   display: flex;
@@ -885,7 +885,7 @@ footer a {
   visibility: hidden;
 }
 [data-has-snapshot="false"] .value,
-[data-has-snapshot="false"] .root-strip code {
+[data-has-snapshot="false"] .tree-root code {
   color: #748270;
 }
 body:not([data-connection="online"]) .live-dot {
@@ -1027,20 +1027,14 @@ body:not([data-connection="online"]) .live-dot {
     flex: none;
     min-width: 170px;
   }
-  .legend .legend-depth {
-    display: none;
-  }
-  .root-strip {
-    gap: 15px;
-    flex-wrap: wrap;
-    padding: 17px 0;
-    margin-bottom: 20px;
+  .tree-root {
+    text-align: left;
   }
   .root-label {
-    width: 100%;
+    justify-content: flex-start;
     font-size: 8px;
   }
-  .root-strip code {
+  .tree-root code {
     font-size: 10px;
   }
   .recent-leaves {
@@ -1052,6 +1046,11 @@ body:not([data-connection="online"]) .live-dot {
   }
   .explorer-toolbar {
     padding: 12px;
+  }
+  .explorer-toolbar .legend {
+    order: 1;
+    flex-basis: 100%;
+    margin-inline-start: 0;
   }
   .view-buttons button {
     padding: 8px 10px;
@@ -1118,10 +1117,6 @@ body:not([data-connection="online"]) .live-dot {
   }
   .explorer-header {
     padding: 14px 15px;
-    height: auto;
-    min-height: 74px;
-    flex-wrap: wrap;
-    gap: 12px;
   }
   .tree-title {
     gap: 11px;

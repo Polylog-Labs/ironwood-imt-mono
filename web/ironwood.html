@@ -105,25 +105,18 @@
         </article>
       </section>
 
-      <section class="root-strip" aria-label="Current tree root">
-        <div class="root-label">
-          <span class="mini-diamond"></span>
-          <span id="root-label">CURRENT ROOT</span>
-        </div>
-        <code id="root">Available after connection</code>
-      </section>
-
       <section class="explorer" aria-labelledby="tree-heading">
         <div class="explorer-header">
           <div class="tree-title">
             <span class="section-number">[ 01 — 32 ]</span>
             <h2 id="tree-heading">The commitment tree</h2>
           </div>
-          <div class="legend">
-            <span><i class="occupied-dot"></i>Occupied</span
-            ><span><i class="empty-dot"></i>Empty</span
-            ><span><i class="latest-dot"></i>Latest path</span
-            ><span class="legend-depth">32 LEVELS</span>
+          <div class="tree-root" role="group" aria-labelledby="root-label">
+            <div class="root-label">
+              <span class="mini-diamond" aria-hidden="true"></span>
+              <span id="root-label">CURRENT ROOT</span>
+            </div>
+            <code id="root">Available after connection</code>
           </div>
         </div>
         <div class="explorer-toolbar" id="explorer-toolbar" inert>
@@ -134,6 +127,11 @@
             ><button id="view-latest" type="button">
               Latest leaf <span aria-hidden="true">↗</span>
             </button>
+          </div>
+          <div class="legend">
+            <span><i class="occupied-dot"></i>Occupied</span
+            ><span><i class="empty-dot"></i>Empty</span
+            ><span><i class="latest-dot"></i>Latest path</span>
           </div>
           <form id="leaf-search" class="leaf-search">
             <label class="sr-only" for="leaf-index">Go to leaf index</label
