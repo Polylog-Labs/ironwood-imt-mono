@@ -4,24 +4,303 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <title>Zcash Analytics — Coming soon</title>
-    <meta name="description" content="Zcash Analytics is coming soon. Explore the Ironwood note commitment tree today." />
-    <meta property="og:title" content="Zcash Analytics — Coming soon" />
-    <meta property="og:description" content="Explore the Ironwood note commitment tree today." />
+    <title>Ironwood activity · Zcash Analytics</title>
+    <meta
+      name="description"
+      content="Explore daily activity, peak hours, pool flows and confirmation times in Zcash’s Ironwood shielded pool."
+    />
+    <meta property="og:title" content="Ironwood activity · Zcash Analytics" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.zcashanalytics.com/" />
     <link rel="canonical" href="https://www.zcashanalytics.com/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/dashboard.css" />
+    <link rel="stylesheet" href="/activity.css" />
+    <script src="/navigation.js" type="module"></script>
   </head>
-  <body class="landing">
-    <main class="landing-content">
-      <img src="/favicon.svg" width="64" height="64" alt="" />
-      <p class="landing-brand">ZCASH ANALYTICS</p>
-      <h1>Coming soon.</h1>
-      <p class="landing-detail">The Ironwood tree explorer is live.</p>
-      <a class="landing-link" href="/ironwood">Explore Ironwood <span aria-hidden="true">↗</span></a>
+  <body class="activity-page">
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="wordmark" href="/"
+          ><img src="/favicon.svg" width="37" height="37" alt="" />Zcash
+          Analytics</a
+        >
+        <nav aria-label="Main navigation">
+          <a href="/" aria-current="page">Pool activity</a>
+          <a href="/ironwood">Tree explorer</a>
+        </nav>
+      </div>
+    </header>
+    <main id="pool-view">
+      <section class="intro">
+        <div>
+          <h1>Ironwood activity</h1>
+          <p>Confirmed transactions in the Ironwood shielded pool.</p>
+        </div>
+        <p id="connection" role="status">Connecting to the indexer…</p>
+      </section>
+      <noscript
+        ><p class="notice">
+          Enable JavaScript to explore the activity calendar.
+        </p></noscript
+      >
+      <section class="calendar-panel" aria-label="Ironwood activity calendar">
+        <div class="calendar-overview">
+          <div class="headline-count">
+            <strong id="calendar-total">—</strong>
+            <span>confirmed transactions involving Ironwood</span>
+          </div>
+          <p class="period" id="calendar-period">Waiting for indexed dates</p>
+          <div class="calendar-layout">
+            <div class="day-names" aria-hidden="true">
+              <span>Mon</span><span>Wed</span><span>Fri</span><span>Sun</span>
+            </div>
+            <div class="calendar-scroll" id="calendar-scroll" tabindex="0" aria-label="Calendar years">
+              <div
+                id="calendar"
+                class="calendar-years"
+                role="group"
+                aria-label="Choose a date. Arrow keys move by day or week."
+              ></div>
+            </div>
+          </div>
+          <div class="calendar-foot">
+            <span class="legend"
+              >Less <i data-level="0"></i><i data-level="1"></i
+              ><i data-level="2"></i><i data-level="3"></i
+              ><i data-level="4"></i> More</span
+            >
+          </div>
+        </div>
+        <div class="daily">
+          <div class="panel-head">
+            <div class="day-heading">
+              <h2 id="selected-date">Daily activity</h2>
+              <small id="chart-date-basis" hidden>UTC date</small>
+            </div>
+            <div class="timezone" id="chart-timezone">
+              <button
+                type="button"
+                id="timezone-toggle"
+                aria-expanded="false"
+                aria-controls="timezone-popup"
+              >
+                <span id="timezone-name">UTC</span>
+              </button>
+              <div
+                id="timezone-popup"
+                role="group"
+                aria-label="Chart time zone"
+                hidden
+              >
+                <label for="timezone-search" class="sr-only"
+                  >Search time zones</label
+                >
+                <input
+                  id="timezone-search"
+                  type="search"
+                  placeholder="Search time zones"
+                  autocomplete="off"
+                />
+                <div id="timezone-options"></div>
+              </div>
+            </div>
+          </div>
+          <div class="day-total-row">
+            <p class="daily-count">
+              <strong id="day-total">—</strong> transactions
+            </p>
+            <span class="unit-label" id="hour-coverage"></span>
+          </div>
+          <div class="hour-plot">
+            <svg
+              id="hour-chart"
+              viewBox="0 0 288 82"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            ></svg>
+            <div
+              id="hour-targets"
+              role="group"
+              aria-label="Transactions by hour. Use left and right arrows to move between hours."
+            ></div>
+          </div>
+          <div class="chart-axis" aria-hidden="true">
+            <span data-chart-hour="0">00h</span>
+            <span data-chart-hour="6">06h</span>
+            <span data-chart-hour="12">12h</span>
+            <span data-chart-hour="18">18h</span>
+            <span data-chart-hour="24">24h</span>
+          </div>
+          <div role="status">
+            <div class="peak">
+              <span id="hour-label">Peak hour</span
+              ><strong id="peak-hour">—</strong>
+            </div>
+            <p class="detail" id="peak-detail">—</p>
+          </div>
+        </div>
+      </section>
+      <div class="insights">
+        <section class="flow-panel" aria-labelledby="flows-heading">
+          <div class="panel-head">
+            <h2 id="flows-heading">Pool flows</h2>
+            <span class="unit-label" id="flow-date">ZEC</span>
+          </div>
+          <div class="flow-pair">
+            <div>
+              <h3>Median in</h3>
+              <strong id="median-in">—</strong
+              ><small id="count-in">Inflows</small>
+            </div>
+            <div>
+              <h3>Median out</h3>
+              <strong id="median-out">—</strong
+              ><small id="count-out">Outflows</small>
+            </div>
+          </div>
+          <p class="detail" id="flow-window" aria-live="polite">
+            Waiting for indexed pool flows.
+          </p>
+        </section>
+        <section class="week-panel">
+          <div class="panel-head">
+            <h2>Busiest weekday</h2>
+            <span class="unit-label" id="weekday-zone">UTC</span>
+          </div>
+          <div class="weekday-result">
+            <strong id="weekday">—</strong>
+            <span id="weekday-hour" title="Typical peak hour"></span>
+          </div>
+          <div
+            id="weekday-bars"
+            class="weekday-bars"
+            aria-label="Median transactions per weekday"
+          ></div>
+          <p class="detail" id="weekday-detail">
+            Median daily count across complete indexed days.
+          </p>
+        </section>
+      </div>
+      <section
+        class="commitment-breakdown"
+        aria-label="Tree commitment breakdown"
+      >
+        <dl>
+          <div>
+            <dt>Commitments in the last 365 days</dt>
+            <dd>
+              <span id="calendar-commitments">—</span>
+              <small id="commitment-transactions"
+                >From confirmed transactions</small
+              >
+              <small id="commitment-detail"></small>
+            </dd>
+          </div>
+          <div>
+            <dt>Coinbase commitments</dt>
+            <dd>
+              <span id="coinbase-commitments">—</span>
+              <small>From miner reward transactions</small>
+            </dd>
+          </div>
+          <div id="earlier-commitments-row" hidden>
+            <dt>Earlier commitments</dt>
+            <dd>
+              <span id="earlier-commitments">—</span>
+              <small>From transactions before that period</small>
+            </dd>
+          </div>
+          <div class="commitment-total">
+            <dt>Total leaves in the tree</dt>
+            <dd>
+              <span id="tree-commitments">—</span>
+              <small id="commitment-block">Awaiting a verified block</small>
+              <small>One leaf per Ironwood action</small>
+            </dd>
+          </div>
+        </dl>
+      </section>
+      <section class="network-panel" aria-label="Network statistics">
+        <dl>
+          <div>
+            <dt>Last complete hour</dt>
+            <dd>
+              <span id="last-hour">—</span>
+              <small id="hour-baseline">Confirmed transactions</small>
+            </dd>
+          </div>
+          <div>
+            <dt>Shielded block capacity</dt>
+            <dd>
+              <span id="block-load">—</span>
+              <small id="load-detail">Latest 100 blocks</small>
+            </dd>
+          </div>
+          <div>
+            <dt>Pool balance</dt>
+            <dd>
+              <span id="pool-balance">—</span>
+              <small id="balance-detail">ZEC held in Ironwood</small>
+            </dd>
+          </div>
+          <div>
+            <dt>Pending transactions</dt>
+            <dd>
+              <span id="pending-count">—</span>
+              <small id="pending-detail">Provider mempool</small>
+            </dd>
+          </div>
+          <div>
+            <dt>Average wait time for first confirmation</dt>
+            <dd>
+              <span id="first-time">—</span>
+
+              <small id="first-detail">Collecting observations</small>
+            </dd>
+          </div>
+          <div>
+            <dt>First to tenth confirmation</dt>
+            <dd>
+              <span id="ten-time">—</span> <span class="stat-unit">median</span>
+
+              <small id="ten-detail">Awaiting block intervals</small>
+            </dd>
+          </div>
+        </dl>
+      </section>
+      <details class="methods">
+        <summary>How these figures are calculated</summary>
+        <p>
+          Each calendar square counts distinct confirmed transactions involving
+          Ironwood, including transfers across pools. Miner coinbase
+          transactions are excluded. One transaction can add multiple leaves to
+          the tree because each Ironwood action adds a note commitment. The tree
+          also includes actions in miner coinbase transactions. Dates and hours
+          use the block timestamp in UTC. The brightest squares mark the upper
+          quarter of active days in the displayed range.
+        </p>
+        <p>
+          Pool flows use the signed net Ironwood value of each decoded
+          transaction mined on the selected UTC date. Inflows and outflows have
+          separate medians. The panel shows how much of the day has been indexed
+          for flows. Ironwood-only transactions can pay a miner fee from the
+          pool and are excluded from both groups. A mixed transaction’s net
+          value can include its fee. Amounts paid between shielded users remain
+          private.
+        </p>
+        <p>
+          Weekday rankings compare median transaction counts per complete UTC
+          day over the indexed year. The average wait for first confirmation
+          uses the time between seeing a pending transaction and indexing its
+          block. The first-to-tenth interval measures how long nine more blocks
+          take after that first block. Both timing figures cover the last seven
+          days. The last complete hour is compared with the same UTC hour on up
+          to 28 preceding days. Shielded block usage measures the share of the
+          NU7 shared action budget consumed by all shielded pools.
+        </p>
+      </details>
     </main>
   </body>
 </html>

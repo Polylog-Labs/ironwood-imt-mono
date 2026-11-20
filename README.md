@@ -1,6 +1,6 @@
 # Ironwood
 
-A live explorer for Zcash's Ironwood commitment tree. One Rust service syncs public chain data, verifies tree roots, stores changes in SQLite, and serves a read-only API. The UI runs in the same binary or separately on Vercel.
+A live activity monitor and commitment tree explorer for Zcash’s Ironwood shielded pool. One Rust service syncs public chain data, verifies tree roots, stores changes in SQLite, and serves a read-only API. The UI runs in the same binary or separately on Vercel.
 
 ![Ironwood explorer showing capacity, growth, the current root, and the path to the latest leaf](docs/images/ironwood-explorer.png)
 
@@ -8,6 +8,8 @@ The explorer displays the **depth-32 note commitment tree**, with capacity for 4
 
 ## Features
 
+- The home page shows full calendar years with selectable dates, hourly peaks, and weekday rankings in the selected time zone.
+- Daily pool flow medians use public net value changes from cross-pool transactions. The page also tracks pool balance, pending transactions, confirmation timing, and recent shielded block usage.
 - Capacity used, rolling 24-hour growth, estimated fill date, and pending commitments.
 - A draggable, zoomable tree with the latest leaf's path highlighted in blue.
 - Leaf commitments, containing block timestamps in UTC, and verified subtree hashes.
@@ -20,17 +22,16 @@ Rendering and storage scale with the visible region and occupied leaves. The ser
 Install Node.js 22.18+ and the Rust toolchain, then:
 
 ```sh
-npm ci --ignore-scripts
-cargo build --release --locked
-./target/release/ironwood-indexer --public-rpc
+make run
 ```
 
-Open **http://localhost:3000/ironwood**. The API starts while history syncs; stop with Ctrl-C and rerun to resume. The dashboard refreshes every 10 seconds.
+Open **http://localhost:3000/** for pool activity or **http://localhost:3000/ironwood** for the tree. The API starts while history syncs; stop with Ctrl-C and rerun to resume. The dashboard refreshes every 10 seconds.
 
-The public mainnet preset uses Stardust, Cake Wallet, Zec.rocks, and ZcashESP lightwalletd providers. No local Zcash node or API key is required. SQLite and the protobuf compiler are bundled. Cargo compiles and embeds the TypeScript UI; the resulting binary needs no Node runtime.
+The public mainnet preset uses Stardust, Cake Wallet, Zec.rocks, and ZcashESP lightwalletd providers. No local Zcash node or API key is required. SQLite and the protobuf compiler are bundled. Use `make build` to install the pinned frontend dependencies and build the binary without starting it. Cargo embeds the compiled UI, and the binary runs without Node.
 
 | Option | Default / purpose |
 | --- | --- |
+| `--pool-balance-url URL` | Optional Zebra RPC for block-pinned pool totals with custom lightwalletd sources. The public mainnet preset uses Tatum. |
 | `--database PATH` | `data/ironwood.sqlite` |
 | `--bind ADDRESS` | `127.0.0.1:3000`; use `127.0.0.1:3001` to serve on port 3001 |
 | `--poll-seconds N` | `10`; increase to reduce upstream requests |
@@ -43,6 +44,7 @@ Run `--help` for all options. JSON-RPC authentication uses `ZCASH_RPC_COOKIE`, o
 ## API
 
 ```sh
+curl http://localhost:3000/v1/activity
 curl http://localhost:3000/v1/dashboard
 curl 'http://localhost:3000/v1/leaves?from=0&limit=100'
 curl http://localhost:3000/v1/tree/nodes/32/0

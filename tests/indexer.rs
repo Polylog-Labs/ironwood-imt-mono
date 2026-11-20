@@ -317,6 +317,8 @@ async fn embedded_ui_serves_compiled_modules_without_a_node_runtime() {
         stale_after_seconds: 60,
     });
     for (uri, expected) in [
+        ("/activity.js", "from \"./dom.js\""),
+        ("/navigation.js", "import(\"./activity.js\")"),
         ("/dashboard.js", "from \"./tree.js\""),
         ("/tree.js", "from \"./dom.js\""),
         ("/tree-model.js", "export const DEPTH = 32"),
@@ -649,4 +651,323 @@ async fn leaf_dates_follow_pinned_blocks_and_reorgs() {
     let replaced = store.leaves(2, 1, None).await.unwrap();
     assert_eq!(replaced.items[0].time, replacement.block.time);
     assert_eq!(replaced.items[0].cmx, bytes(4));
+}
+
+#[tokio::test]
+async fn activity_counts_transactions_once_and_reorgs_remove_enrichment() {
+    use ironwood_indexer::{
+        activity::{CandidateBlock, Flow},
+        usage::BlockUsage,
+    };
+    let (dir, store) = database().await;
+    let mut blocks = chain(&[vec![1, 2, 3], vec![4], vec![5], vec![6]]);
+    for (i, b) in blocks.iter_mut().enumerate() {
+        b.block.time = 86_400 * (10 + i as u64) + 3600;
+        b.block.tx[0].index = Some(if i == 0 { 0 } else { 1 });
+    }
+    let pending_id = blocks[1].block.tx[0].txid;
+    store
+        .observe_pending(unix_time() - 20, vec![pending_id])
+        .await
+        .unwrap();
+    store.apply_batch(blocks.clone()).await.unwrap();
+    let missing = store.missing_flows().await.unwrap();
+    assert_eq!(missing.len(), 3);
+    let day = 86_400;
+    assert_eq!(
+        store
+            .missing_daily_flows(13 * day, 128)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    let incomplete = store.daily_flows(13 * day).await.unwrap().unwrap();
+    assert_eq!((incomplete.checked, incomplete.transactions), (0, 1));
+    // Newest first. The middle transaction only pays a fee, and compact
+    // classification makes it unnecessary to decode its full bytes.
+    let rows = missing
+        .iter()
+        .zip([(-100, false), (800, true), (30, false)])
+        .filter(|(_, (_, only))| !only)
+        .map(|(&key, (net_zat, ironwood_only))| {
+            (
+                key,
+                Flow {
+                    net_zat,
+                    ironwood_only,
+                },
+            )
+        })
+        .collect();
+    store.save_flows(rows).await.unwrap();
+    let b = &blocks[2].block;
+    let mut usage = BlockUsage::new(b.height, b.hash);
+    usage.count(false, 1, 0, false);
+    store.save_usage(vec![usage]).await.unwrap();
+    let fee_only = store.daily_flows(12 * day).await.unwrap().unwrap();
+    assert_eq!((fee_only.checked, fee_only.transactions), (1, 1));
+    assert_eq!(fee_only.ironwood_only, 1);
+    assert!(fee_only.median_out_zat.is_none());
+    assert!(
+        store
+            .missing_daily_flows(12 * day, 128)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let deposit = store.daily_flows(13 * day).await.unwrap().unwrap();
+    assert_eq!(deposit.median_in_zat, Some(100.0));
+    assert!(deposit.median_out_zat.is_none());
+    let withdrawal = store.daily_flows(11 * day).await.unwrap().unwrap();
+    assert_eq!(withdrawal.median_out_zat, Some(30.0));
+    assert!(withdrawal.median_in_zat.is_none());
+    assert!(store.daily_flows(13 * day + 1).await.unwrap().is_none());
+    assert_eq!(
+        store.next_incomplete_flow_day().await.unwrap(),
+        Some(13 * day)
+    );
+    store.save_daily_flows(13 * day).await.unwrap();
+    assert_eq!(
+        store.next_incomplete_flow_day().await.unwrap(),
+        Some(12 * day)
+    );
+    let saved = rusqlite::Connection::open(dir.path().join("index.sqlite")).unwrap();
+    assert_eq!(
+        saved
+            .query_row(
+                "SELECT median_in_zat FROM daily_pool_flows WHERE day=?1",
+                [13 * day],
+                |r| r.get::<_, f64>(0)
+            )
+            .unwrap(),
+        100.0
+    );
+    let mixed = &blocks[1].block;
+    let mut usage = BlockUsage::new(mixed.height, mixed.hash);
+    usage.count(false, 1, 0, true);
+    store.save_usage(vec![usage]).await.unwrap();
+    assert_eq!(
+        store.flow_candidate_span(11 * day).await.unwrap(),
+        Some((mixed.height, mixed.height))
+    );
+    assert!(
+        store
+            .save_flow_candidates(vec![CandidateBlock {
+                height: mixed.height,
+                hash: mixed.hash,
+                other_pool_txids: Default::default()
+            }])
+            .await
+            .is_err()
+    );
+    store
+        .save_flow_candidates(vec![CandidateBlock {
+            height: mixed.height,
+            hash: mixed.hash,
+            other_pool_txids: [mixed.tx[0].txid].into(),
+        }])
+        .await
+        .unwrap();
+    assert!(store.flow_candidate_span(11 * day).await.unwrap().is_none());
+
+    let tip = &blocks[3].block;
+    store.save_balance(tip.hash, 9000).await.unwrap();
+    let stats = store.activity().await.unwrap();
+    let days = stats["days"].as_array().unwrap();
+    assert_eq!(days.len(), 4);
+    assert_eq!(
+        stats["commitments"],
+        json!({
+            "from_calendar":3,"from_coinbase":3,"from_earlier":0,"leaves":6,"transactions":3,
+            "most_common":[1]
+        })
+    );
+    assert_eq!(days[0]["hours"][1], 0);
+    assert_eq!(days[1]["hours"][1], 1);
+    assert_eq!(days[1]["classified"], true);
+    assert_eq!(days[2]["classified"], true);
+    assert_eq!(days[2]["internal"][1], 1);
+    assert_eq!(stats["flows"]["median_in_zat"], 100.0);
+    assert_eq!(stats["flows"]["median_out_zat"], 30.0);
+    assert_eq!(stats["first_confirmation"]["count"], 1);
+    assert_eq!(stats["balance"]["amount_zat"], 9000);
+
+    store.rollback(blocks[0].block.height).await.unwrap();
+    assert!(store.daily_flows(13 * day).await.unwrap().is_none());
+    assert_eq!(
+        saved
+            .query_row(
+                "SELECT dirty FROM daily_pool_flows WHERE day=?1",
+                [13 * day],
+                |r| r.get::<_, u8>(0)
+            )
+            .unwrap(),
+        1
+    );
+    // Simulate the original request completing after the reorg.
+    store
+        .save_flows(vec![(
+            missing[0],
+            Flow {
+                net_zat: -100,
+                ironwood_only: false,
+            },
+        )])
+        .await
+        .unwrap();
+    let stats = store.activity().await.unwrap();
+    assert_eq!(stats["flows"]["transactions"], 0);
+    assert_eq!(stats["flows"]["decoded"], 0);
+    assert!(stats["flows"]["median_in_zat"].is_null());
+    assert!(stats["balance"].is_null());
+    assert_eq!(stats["first_confirmation"]["count"], 0);
+    assert_eq!(stats["load"]["blocks"], 0);
+    assert_eq!(stats["commitments"]["from_coinbase"], 3);
+    assert_eq!(stats["commitments"]["from_calendar"], 0);
+    assert_eq!(stats["commitments"]["leaves"], 3);
+}
+
+#[tokio::test]
+async fn activity_migration_derives_historical_counts_from_original_transaction_indexes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v1.sqlite");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(include_str!("../src/schema.sql"))
+            .unwrap();
+        conn.execute_batch("INSERT INTO metadata VALUES (1,'main',zeroblob(32),11,0);
+            INSERT INTO blocks VALUES(10,randomblob(32),900,0,0,randomblob(32));
+            INSERT INTO blocks VALUES(11,randomblob(32),1000,0,4,randomblob(32));
+            INSERT INTO leaves VALUES(0,11,randomblob(32),0,0,randomblob(32),randomblob(32));
+            INSERT INTO leaves VALUES(1,11,randomblob(32),4,0,randomblob(32),randomblob(32));
+            INSERT INTO leaves SELECT 2,height,txid,4,1,randomblob(32),randomblob(32) FROM leaves WHERE position=1;
+            INSERT INTO leaves VALUES(3,11,randomblob(32),7,0,randomblob(32),randomblob(32));").unwrap();
+    }
+    for _ in 0..2 {
+        let store = Store::open(&path).await.unwrap();
+        let stats = store.activity().await.unwrap();
+        assert_eq!(stats["days"][0]["hours"][0], 2);
+        assert_eq!(stats["flows"]["transactions"], 2);
+        assert_eq!(stats["flows"]["decoded"], 0);
+        assert_eq!(store.usage_gap().await.unwrap(), Some((11, 11)));
+    }
+}
+
+#[tokio::test]
+async fn commitment_breakdown_accounts_for_transactions_before_the_calendar() {
+    let (_dir, store) = database().await;
+    let mut blocks = chain(&[vec![1, 2], vec![3], vec![4, 5, 6], vec![7, 8]]);
+    for (block, day, tx_index) in [(0, 10, 1), (1, 11, 0), (2, 499, 1), (3, 500, 1)] {
+        blocks[block].block.time = day * 86_400;
+        blocks[block].block.tx[0].index = Some(tx_index);
+    }
+    store.apply_batch(blocks).await.unwrap();
+    let stats = store.activity().await.unwrap();
+    assert_eq!(stats["days"].as_array().unwrap().len(), 365);
+    assert_eq!(
+        stats["commitments"],
+        json!({"from_calendar":5,"from_coinbase":1,"from_earlier":2,"leaves":8,
+            "transactions":2,"most_common":[2,3]})
+    );
+}
+
+#[tokio::test]
+async fn activity_archive_bounds_years_and_keeps_historical_pool_flows_available() {
+    let (_dir, store) = database().await;
+    let mut blocks = chain(&[vec![1], vec![2], vec![3], vec![4]]);
+    let timestamps = [
+        "2028-02-29T23:00:00Z",
+        "2028-12-31T23:00:00Z",
+        "2029-01-01T00:00:00Z",
+        "2030-01-01T00:00:00Z",
+    ];
+    for (block, timestamp) in blocks.iter_mut().zip(timestamps) {
+        block.block.time = chrono::DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .timestamp() as u64;
+        block.block.tx[0].index = Some(1);
+    }
+    let leap_day = blocks[0].block.time / 86400 * 86400;
+    store.apply_batch(blocks).await.unwrap();
+    let archive = store.activity_year(2028).await.unwrap().unwrap();
+    assert_eq!(archive.first().unwrap().start, leap_day);
+    assert_eq!(archive.len(), 307);
+    assert_eq!(archive.first().unwrap().hours[23], 1);
+    assert_eq!(archive.last().unwrap().hours[23], 1);
+    assert_eq!(store.activity_year(2029).await.unwrap().unwrap().len(), 365);
+    assert_eq!(store.activity_year(2030).await.unwrap().unwrap().len(), 1);
+    assert!(store.activity_year(2027).await.unwrap().is_none());
+    assert!(store.activity_year(2031).await.unwrap().is_none());
+    assert_eq!(
+        store
+            .daily_flows(leap_day)
+            .await
+            .unwrap()
+            .unwrap()
+            .transactions,
+        1
+    );
+}
+
+#[tokio::test]
+async fn zoned_weekdays_split_utc_hours_at_half_hour_midnight() {
+    let (_dir, store) = database().await;
+    let mut blocks = chain(&[vec![1], vec![2], vec![3], vec![4], vec![5], vec![6]]);
+    for (input, timestamp) in blocks.iter_mut().zip([
+        "2026-01-02T00:00:00Z",
+        "2026-01-05T18:15:00Z",
+        "2026-01-05T18:45:00Z",
+        "2026-01-12T18:15:00Z",
+        "2026-01-12T18:45:00Z",
+        "2026-01-14T06:00:00Z",
+    ]) {
+        input.block.time = chrono::DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .timestamp() as u64;
+        input.block.tx[0].index = Some(1);
+    }
+    store.apply_batch(blocks).await.unwrap();
+    let utc = store.activity().await.unwrap();
+    assert_eq!(
+        utc["weekdays"][0],
+        json!({"days":2,"median":2.0,"peak_hour":18})
+    );
+    assert_eq!(
+        utc["weekdays"][1],
+        json!({"days":2,"median":0.0,"peak_hour":null})
+    );
+
+    let local = store
+        .zoned_weekdays(chrono_tz::Asia::Kolkata)
+        .await
+        .unwrap();
+    assert_eq!((local[0].median, local[0].peak_hour), (Some(1.0), Some(23)));
+    assert_eq!((local[1].median, local[1].peak_hour), (Some(1.0), Some(0)));
+}
+
+#[tokio::test]
+async fn zoned_weekdays_include_both_occurrences_of_a_repeated_hour() {
+    let (_dir, store) = database().await;
+    let mut blocks = chain(&[vec![1], vec![2], vec![3], vec![4]]);
+    for (input, timestamp) in blocks.iter_mut().zip([
+        "2026-10-31T12:00:00Z",
+        "2026-11-01T05:15:00Z",
+        "2026-11-01T06:15:00Z",
+        "2026-11-02T06:00:00Z",
+    ]) {
+        input.block.time = chrono::DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .timestamp() as u64;
+        input.block.tx[0].index = Some(1);
+    }
+    store.apply_batch(blocks).await.unwrap();
+    let sunday = store
+        .zoned_weekdays(chrono_tz::America::New_York)
+        .await
+        .unwrap()[6];
+    assert_eq!(
+        (sunday.days, sunday.median, sunday.peak_hour),
+        (1, Some(2.0), Some(1))
+    );
 }

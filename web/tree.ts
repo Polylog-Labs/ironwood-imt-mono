@@ -94,6 +94,7 @@ export class TreeView {
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     this.width = rect.width;
     this.height = rect.height;
     this.dpr = Math.min(devicePixelRatio || 1, 2);

@@ -127,6 +127,7 @@ impl Mempool {
 
 pub async fn run(
     providers: Providers,
+    store: crate::store::Store,
     concurrency: usize,
     poll: Duration,
     shared: SharedMempool,
@@ -148,6 +149,13 @@ pub async fn run(
                     interval.reset_after(retry);
                     retry = retry.saturating_mul(2).min(poll.max(Duration::from_secs(300)));
                 } else {
+                    let sample = shared.read().await;
+                    let ids = sample.actions.iter().filter(|a|a.action_index == 0).map(|a|a.txid).collect();
+                    let seen = sample.observed_at.unwrap_or_else(unix_time);
+                    drop(sample);
+                    if let Err(error) = store.observe_pending(seen, ids).await {
+                        tracing::warn!(%error,"failed to record mempool observation");
+                    }
                     retry = poll;
                     interval.reset_after(poll);
                 }

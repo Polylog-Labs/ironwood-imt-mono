@@ -8,6 +8,7 @@ const staticAssets = [
   "index.html",
   "ironwood.html",
   "dashboard.css",
+  "activity.css",
   "favicon.svg",
   "apple-touch-icon.png",
   "share.png",
@@ -16,6 +17,8 @@ const staticAssets = [
 export const webAssets = [
   ...staticAssets,
   "dashboard.js",
+  "activity.js",
+  "navigation.js",
   "tree.js",
   "tree-model.js",
   "dom.js",

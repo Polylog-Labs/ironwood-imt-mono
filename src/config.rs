@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 #[command(version, about)]
 pub struct Config {
     /// Use the four built-in free mainnet lightwalletd providers with automatic failover.
@@ -13,6 +13,9 @@ pub struct Config {
     /// Ordered lightwalletd endpoints (TLS). Repeat the flag or separate URLs with commas.
     #[arg(long, env = "ZCASH_LIGHTWALLETD_URL", value_delimiter = ',', conflicts_with_all = ["rpc_url", "rpc_user", "rpc_password", "rpc_cookie"])]
     pub lightwalletd_url: Vec<String>,
+    /// Optional Zebra JSON-RPC for public pool totals when using lightwalletd.
+    #[arg(long, env = "IRONWOOD_POOL_BALANCE_URL")]
+    pub pool_balance_url: Option<String>,
     /// Maximum blocks per verified lightwalletd batch.
     #[arg(long, default_value_t = 500, value_parser = clap::value_parser!(u16).range(1..=2000))]
     pub batch_size: u16,

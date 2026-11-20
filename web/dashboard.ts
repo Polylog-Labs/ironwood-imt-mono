@@ -42,6 +42,7 @@ let payload: DashboardResponse | null = null;
 let timer: number | undefined;
 let inFlight = false;
 let retryNotBefore = 0;
+let refreshAfter = 0;
 let selected = nodeInfo(0, 0, 0);
 let selectionRequest: AbortController | undefined;
 let selectionVersion = 0;
@@ -60,11 +61,8 @@ const tree = new TreeView(byId("tree-canvas", "canvas"), {
     refresh();
   },
 });
-
-function status(label: string, kind = "") {
-  text("status", label);
-  byId("status").className = `status ${kind}`;
-}
+const treePage = byId("tree-view");
+const viewActive = () => !treePage.hidden && !document.hidden;
 
 function renderSync(next: DashboardResponse | null, unavailable = false) {
   const panel = byId("sync-panel");
@@ -100,7 +98,7 @@ function renderSync(next: DashboardResponse | null, unavailable = false) {
 function render(next: DashboardResponse) {
   const previousHash = payload?.data.snapshot.checkpoint.hash;
   payload = next;
-  const { data, mempool, sync } = payload;
+  const { data, mempool } = payload;
   const tip = data.snapshot.checkpoint;
   const growth = data.growth_24h;
   renderSync(next);
@@ -110,12 +108,6 @@ function render(next: DashboardResponse) {
   byId("explorer-toolbar").inert = false;
   byId("tree-canvas", "canvas").inert = false;
   text("root-label", "CURRENT ROOT");
-  text(
-    "network",
-    data.snapshot.network === "main"
-      ? "MAINNET"
-      : data.snapshot.network.toUpperCase(),
-  );
   text("usage", `${data.used_percent.toFixed(5)}%`);
   byId("capacity-bar", "progress").value = data.used_percent;
   text(
@@ -184,10 +176,6 @@ function render(next: DashboardResponse) {
     "updated",
     `Updated ${new Date(payload.observed_at * 1000).toISOString().slice(11, 19)} UTC · 10s refresh`,
   );
-  if (payload.ready) status("Synced", "live");
-  else if (sync.failed) status("Sync retrying", "warning");
-  else if (!payload.caught_up) status("API syncing", "warning");
-  else status("Awaiting fresh data", "warning");
   byId("error").hidden = true;
   tree.setSnapshot(data.snapshot, data.latest_leaves);
   // Keep the camera and selection when new blocks arrive, and refresh pinned details.
@@ -434,7 +422,7 @@ async function read<T>(url: string, signal: AbortSignal): Promise<T> {
 }
 
 async function refresh() {
-  if (inFlight || document.hidden) return false;
+  if (inFlight || !viewActive()) return false;
   if (Date.now() < retryNotBefore) {
     clearTimeout(timer);
     timer = window.setTimeout(refresh, retryNotBefore - Date.now());
@@ -453,7 +441,6 @@ async function refresh() {
     renderSync(payload, true);
     document.body.dataset.connection = payload ? "stale" : "offline";
     const limited = error instanceof Error && error.message === "rate-limited";
-    status(limited ? "Retrying shortly" : payload ? "Last known state" : "On standby", "offline");
     if (payload) {
       text("root-label", "LAST VERIFIED ROOT");
       text(
@@ -484,7 +471,8 @@ async function refresh() {
     inFlight = false;
     byId("refresh", "button").disabled = false;
     byId("retry-connection", "button").disabled = false;
-    if (!document.hidden) timer = window.setTimeout(refresh, Math.max(10_000, retryNotBefore - Date.now()));
+    refreshAfter = Date.now() + 10_000;
+    updatePolling();
   }
 }
 
@@ -537,8 +525,13 @@ async function retry() {
 }
 byId("refresh", "button").addEventListener("click", retry);
 byId("retry-connection", "button").addEventListener("click", retry);
-document.addEventListener("visibilitychange", () => {
+function updatePolling() {
   clearTimeout(timer);
-  if (!document.hidden) refresh();
-});
-refresh();
+  if (!viewActive() || inFlight) return;
+  const remaining = Math.max(refreshAfter, retryNotBefore) - Date.now();
+  if (remaining > 0) timer = window.setTimeout(refresh, remaining);
+  else void refresh();
+}
+document.addEventListener("visibilitychange", updatePolling);
+document.addEventListener("ironwood-viewchange", updatePolling);
+updatePolling();

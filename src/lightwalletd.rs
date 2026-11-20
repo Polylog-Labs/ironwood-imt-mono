@@ -59,6 +59,135 @@ impl Lightwalletd {
         })
     }
 
+    pub async fn block_usage(&self, start: u32, end: u32) -> Result<Vec<crate::usage::BlockUsage>> {
+        ensure!(
+            end >= start && u64::from(end - start) < u64::from(self.batch_size),
+            "invalid usage range"
+        );
+        let request = proto::BlockRange {
+            start: Some(block_id(start)),
+            end: Some(block_id(end)),
+            pool_types: vec![
+                proto::PoolType::Transparent as i32,
+                proto::PoolType::Sapling as i32,
+                proto::PoolType::Orchard as i32,
+                proto::PoolType::Ironwood as i32,
+            ],
+        };
+        let mut stream = self
+            .client
+            .clone()
+            .get_block_range(request)
+            .await?
+            .into_inner();
+        let mut rows = Vec::new();
+        // Bound idle time per message. Dense historical ranges can take longer
+        // than one request timeout while still delivering blocks continuously.
+        while let Some(block) = tokio::time::timeout(self.timeout, stream.message())
+            .await
+            .context("timed out waiting for an activity block")??
+        {
+            ensure!(
+                block.height == u64::from(start) + rows.len() as u64
+                    && block.height <= u64::from(end),
+                "unexpected usage block"
+            );
+            let mut row =
+                crate::usage::BlockUsage::new(block.height.try_into()?, display_hash(&block.hash)?);
+            for tx in block.vtx {
+                row.count(
+                    tx.index == 0,
+                    tx.ironwood_actions.len(),
+                    tx.actions.len() + tx.spends.len() + tx.outputs.len(),
+                    !tx.vin.is_empty() || !tx.vout.is_empty(),
+                );
+            }
+            rows.push(row);
+        }
+        ensure!(
+            rows.len() as u64 == u64::from(end - start) + 1,
+            "incomplete block usage range"
+        );
+        Ok(rows)
+    }
+
+    pub async fn flow_candidates(
+        &self,
+        start: u32,
+        end: u32,
+    ) -> Result<Vec<crate::activity::CandidateBlock>> {
+        ensure!(
+            end >= start && end - start < u32::from(self.batch_size),
+            "invalid flow range"
+        );
+        let request = proto::BlockRange {
+            start: Some(block_id(start)),
+            end: Some(block_id(end)),
+            // The local index already has the Ironwood transaction IDs. Only request
+            // other pools so dense Ironwood-only blocks do not need downloading again.
+            pool_types: vec![
+                proto::PoolType::Transparent as i32,
+                proto::PoolType::Sapling as i32,
+                proto::PoolType::Orchard as i32,
+            ],
+        };
+        let mut stream = self
+            .client
+            .clone()
+            .get_block_range(request)
+            .await?
+            .into_inner();
+        let mut blocks = Vec::new();
+        while let Some(block) = tokio::time::timeout(self.timeout, stream.message())
+            .await
+            .context("timed out waiting for compact flow candidates")??
+        {
+            ensure!(
+                block.height == u64::from(start) + blocks.len() as u64
+                    && block.height <= u64::from(end),
+                "unexpected flow block"
+            );
+            let other_pool_txids = block
+                .vtx
+                .into_iter()
+                .filter(|tx| {
+                    tx.index != 0
+                        && !(tx.vin.is_empty()
+                            && tx.vout.is_empty()
+                            && tx.spends.is_empty()
+                            && tx.outputs.is_empty()
+                            && tx.actions.is_empty())
+                })
+                .map(|tx| display_hash(&tx.txid))
+                .collect::<Result<_>>()?;
+            blocks.push(crate::activity::CandidateBlock {
+                height: block.height.try_into()?,
+                hash: display_hash(&block.hash)?,
+                other_pool_txids,
+            });
+        }
+        ensure!(
+            blocks.len() as u64 == u64::from(end - start) + 1,
+            "incomplete flow block range"
+        );
+        Ok(blocks)
+    }
+
+    pub async fn raw_transaction(&self, txid: Bytes32) -> Result<(Vec<u8>, u64)> {
+        let mut hash = txid.0;
+        hash.reverse();
+        let raw = self
+            .client
+            .clone()
+            .get_transaction(proto::TxFilter {
+                hash: hash.to_vec(),
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        Ok((raw.data, raw.height))
+    }
+
     pub fn batch_size(&self) -> u16 {
         self.batch_size
     }

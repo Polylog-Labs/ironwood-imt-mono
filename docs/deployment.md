@@ -4,7 +4,7 @@
 
 ## Run the indexer on a VPS
 
-Keep one Rust process and its SQLite database on persistent local disk. Use remote lightwalletd/RPC providers, so the VPS does not need a full Zcash node. Build a Linux release binary for the VPS architecture on a build machine or in CI. The build machine needs Node.js 22.18+ and `npm ci --ignore-scripts` before `cargo build --release --locked`; Cargo compiles and embeds the UI. Only the resulting Rust binary is needed on the VPS.
+Keep one Rust process and its SQLite database on persistent local disk. Use remote lightwalletd/RPC providers. Build a Linux release binary for the VPS architecture with `make build` on a machine with Node.js 22.18+, npm, and Rust. Make installs the pinned TypeScript dependencies and Cargo embeds the compiled UI. Copy the release binary to the VPS, or run `make build` directly on the VPS if those tools are installed.
 
 ```sh
 ./ironwood-indexer --public-rpc \
@@ -12,7 +12,7 @@ Keep one Rust process and its SQLite database on persistent local disk. Use remo
   --bind 127.0.0.1:3000
 ```
 
-Create the database directory and give the service user write access. Run under a process supervisor, with an HTTPS reverse proxy forwarding requests to port 3000. The embedded UI serves a coming-soon page at `/` and the explorer at `/ironwood`, or use Vercel for the UI below.
+Create the database directory and give the service user write access. Run under a process supervisor, with an HTTPS reverse proxy forwarding requests to port 3000. The embedded UI serves pool activity at `/` and the explorer at `/ironwood`. You can also host the UI on Vercel.
 
 For a small installation, start with 1 shared vCPU, 1 GiB RAM, and 25 GiB SSD. This is a starting allocation, not a measured capacity guarantee. At the default 10-second refresh, 100 open dashboards generate about 10 dashboard requests/second, plus exploration requests. Each visitor has an independent rate allowance. UI requests read SQLite rather than making upstream RPC calls.
 
@@ -31,7 +31,7 @@ The build emits `.vercel/output/` using Vercel's [Build Output API](https://verc
 
 Browser requests stay on the UI's origin through Vercel's [external rewrites](https://vercel.com/docs/routing/rewrites), so no browser CORS configuration is needed. API responses bypass caching to preserve freshness and reorg handling. Static assets revalidate because their filenames are not versioned. No database, screenshot, or Rust build artifacts enter the static output.
 
-While the API is unavailable, the explorer shows neutral metric placeholders and a standby panel with automatic and manual retry. Tree controls appear after the first verified snapshot arrives. If the API goes offline later, the last loaded tree and camera remain visible with a UTC snapshot timestamp and a **Last known state** label.
+While the API is unavailable, the explorer shows neutral metric placeholders and a standby panel with automatic and manual retry. Tree controls appear after the first verified snapshot arrives. If the API goes offline later, the last loaded tree and camera remain visible with a UTC snapshot timestamp.
 
 The Rust API includes a 20-request/second limiter with a 240-request burst per client IP. Configure proxy identity as described below and deploy the updated Rust binary to enable it. Publishing the UI to Vercel does not update the API process.
 

@@ -1,4 +1,5 @@
 //! Index public Ironwood actions from a trusted, validating Zcash RPC node.
+pub mod activity;
 pub mod api;
 pub mod config;
 pub mod lightwalletd;
@@ -9,6 +10,7 @@ pub mod rpc;
 pub mod store;
 pub mod sync;
 pub mod tree;
+pub mod usage;
 
 mod rate_limit;
 mod ui;

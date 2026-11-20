@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use ironwood_indexer::{
+    activity,
     api::{self, AppState},
     config::Config,
     mempool::{self, MempoolSnapshot, ProviderMempool},
@@ -41,11 +42,25 @@ async fn main() -> Result<()> {
     let status = Arc::new(RwLock::new(SyncStatus::default()));
     let pending = Arc::new(RwLock::new(MempoolSnapshot::default()));
     let concurrency = usize::from(config.concurrency);
+    let balance = activity::balance_source(&config)?;
     if config.once {
         sync::sync_with_providers(&providers, &store, concurrency, &status).await?;
         ProviderMempool::new(&mempool_providers)
             .refresh(&mempool_providers, concurrency, &pending)
             .await?;
+        if let Err(e) = activity::fill_flows(&providers, &store, concurrency).await {
+            tracing::warn!(error = %format!("{e:#}"), "flow data unavailable");
+        }
+        if let Some(node) = &balance
+            && let Err(e) = activity::refresh_balance(node, &store).await
+        {
+            tracing::warn!(error = %format!("{e:#}"), "pool balance unavailable");
+        }
+        if let Err(e) =
+            ironwood_indexer::usage::backfill_batch(&providers, &store, concurrency).await
+        {
+            tracing::warn!(error=%format!("{e:#}"),"pool composition unavailable");
+        }
         println!(
             "{}",
             serde_json::to_string_pretty(
@@ -70,9 +85,24 @@ async fn main() -> Result<()> {
     );
     let (shutdown, stop) = watch::channel(false);
     let poll = Duration::from_secs(config.poll_seconds);
+    let activity_task = tokio::spawn(activity::run(
+        providers.independent(),
+        store.clone(),
+        balance,
+        concurrency,
+        poll,
+        stop.clone(),
+    ));
+    let usage_task = tokio::spawn(ironwood_indexer::usage::run(
+        providers.independent(),
+        store.clone(),
+        concurrency,
+        poll,
+        stop.clone(),
+    ));
     let chain_task = tokio::spawn(sync::run(
         providers,
-        store,
+        store.clone(),
         concurrency,
         poll,
         status,
@@ -80,6 +110,7 @@ async fn main() -> Result<()> {
     ));
     let mempool_task = tokio::spawn(mempool::run(
         mempool_providers,
+        store,
         concurrency,
         poll,
         pending,
@@ -97,6 +128,8 @@ async fn main() -> Result<()> {
     })
     .await;
     let _ = shutdown.send(true);
+    usage_task.await?;
+    activity_task.await?;
     chain_task.await?;
     mempool_task.await?;
     server?;

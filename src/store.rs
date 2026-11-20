@@ -1,4 +1,7 @@
-use std::path::Path;
+mod activity;
+mod weekdays;
+
+use std::{collections::BTreeMap, path::Path};
 
 use anyhow::{Result, ensure};
 use serde::Serialize;
@@ -14,6 +17,11 @@ use crate::{model::*, tree};
 pub struct Store {
     writer: Connection,
     reader: Connection,
+    requested_flow_days: std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<u64>>>,
+    weekday_cache:
+        std::sync::Arc<tokio::sync::Mutex<std::collections::VecDeque<weekdays::WeekdayCacheEntry>>>,
+    activity_cache:
+        std::sync::Arc<tokio::sync::Mutex<Option<(std::time::Instant, serde_json::Value)>>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -156,9 +164,19 @@ fn apply_block(
         ],
     )?;
     let mut position = previous.leaf_count;
+    let mut activity_count = 0;
+    let mut coinbase_commitments = 0;
+    let mut actions_per_transaction = BTreeMap::new();
+    let observed_at = unix_time();
     for (tx_index, transaction) in block.tx.iter().enumerate() {
         let tx_index = transaction.index.map(u64::from).unwrap_or(tx_index as u64);
-        for (action_index, action) in transaction.actions()?.iter().enumerate() {
+        let actions = transaction.actions()?;
+        if tx_index == 0 {
+            coinbase_commitments += actions.len();
+        } else if !actions.is_empty() {
+            *actions_per_transaction.entry(actions.len()).or_insert(0) += 1;
+        }
+        for (action_index, action) in actions.iter().enumerate() {
             tree::decode(action.nullifier)?;
             conn.prepare_cached(
                 "INSERT INTO leaves(position, height, txid, tx_index, action_index, cmx, nullifier)
@@ -173,9 +191,28 @@ fn apply_block(
                 action.cmx,
                 action.nullifier
             ])?;
+            if tx_index > 0 && action_index == 0 {
+                activity_count += 1;
+                conn.prepare_cached(
+                    "INSERT INTO confirmation_times(position, observed_at, seconds)
+                     SELECT ?1, ?2, ?2-first_seen FROM pending_sightings
+                     WHERE txid=?3 AND first_seen<=?2 AND ?2-first_seen<=86400",
+                )?
+                .execute(params![position, observed_at, transaction.txid])?;
+            }
             tree::append(conn, position, action.cmx, block.height)?;
             position += 1;
         }
+    }
+    if activity_count > 0 || coinbase_commitments > 0 {
+        conn.prepare_cached(
+            "UPDATE blocks SET activity_count=?1, coinbase_commitments=?2 WHERE height=?3",
+        )?
+        .execute(params![activity_count, coinbase_commitments, block.height])?;
+    }
+    for (actions, transactions) in actions_per_transaction {
+        conn.prepare_cached("INSERT INTO block_transaction_actions VALUES (?1, ?2, ?3)")?
+            .execute(params![block.height, actions, transactions])?;
     }
     ensure!(
         position == expected_count,
@@ -215,10 +252,28 @@ impl Store {
             conn.busy_timeout(std::time::Duration::from_secs(5))?;
             conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA cache_size=-16384;")?;
             let version: u32 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-            ensure!(version <= 1, "database schema is newer than this binary");
-            if version == 0 {
+            ensure!(version <= 5, "database schema is newer than this binary");
+            if version < 5 {
                 let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-                tx.execute_batch(include_str!("schema.sql"))?;
+                let version: u32 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+                if version == 0 {
+                    tx.execute_batch(include_str!("schema.sql"))?;
+                }
+                if version < 2 {
+                    tx.execute_batch(include_str!("activity_schema.sql"))?;
+                }
+                if version < 3 {
+                    tx.execute_batch("CREATE TABLE block_usage (
+                        height INTEGER PRIMARY KEY REFERENCES blocks(height) ON DELETE CASCADE,
+                        ironwood_only INTEGER NOT NULL, shielded_actions INTEGER NOT NULL
+                    ) STRICT; PRAGMA user_version=3;")?;
+                }
+                if version < 4 {
+                    tx.execute_batch(include_str!("daily_flows_schema.sql"))?;
+                }
+                if version < 5 {
+                    tx.execute_batch(include_str!("commitment_counts_schema.sql"))?;
+                }
                 tx.commit()?;
             }
             Ok(())
@@ -232,7 +287,13 @@ impl Store {
                 Ok(())
             })
             .await??;
-        Ok(Self { writer, reader })
+        Ok(Self {
+            writer,
+            reader,
+            requested_flow_days: Default::default(),
+            weekday_cache: Default::default(),
+            activity_cache: Default::default(),
+        })
     }
 
     pub async fn initialize(
@@ -384,7 +445,10 @@ impl Store {
                 tx.commit()?;
                 Ok(())
             })
-            .await?
+            .await??;
+        *self.activity_cache.lock().await = None;
+        self.weekday_cache.lock().await.clear();
+        Ok(())
     }
 
     pub async fn leaves(&self, from: u64, limit: u32, at: Option<Bytes32>) -> Result<Page<Leaf>> {

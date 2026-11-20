@@ -51,6 +51,10 @@ pub fn router(state: AppState) -> Router {
 
 pub fn router_with_proxy(state: AppState, proxy: ProxyConfig) -> Router {
     Router::new()
+        .route("/v1/activity", get(activity))
+        .route("/v1/activity/weekdays", get(zoned_weekdays))
+        .route("/v1/activity/calendar/{year}", get(activity_year))
+        .route("/v1/activity/flows/{day}", get(daily_flows))
         .route("/v1/dashboard", get(dashboard))
         .route("/healthz", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/readyz", get(ready))
@@ -87,6 +91,67 @@ async fn status(State(state): State<AppState>) -> Result<Json<Value>, ApiError> 
         "mempool": {"sequence":mempool.sequence, "observed_at":mempool.observed_at, "actions":mempool.actions.len(), "fresh":mempool_fresh, "failed":mempool.failed}
     })))
 }
+async fn activity(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let mut data = state.store.activity().await?;
+    let pending = state.mempool.read().await;
+    let count = pending
+        .actions
+        .iter()
+        .filter(|a| a.action_index == 0)
+        .count();
+    data["pending"] = json!({"transactions":pending.observed_at.map(|_|count),
+        "observed_at":pending.observed_at,"fresh":!pending.failed && fresh(pending.observed_at,state.stale_after_seconds)});
+    drop(pending);
+    let sync = state.sync.read().await;
+    data["caught_up"] = json!(
+        !sync.failed
+            && fresh(sync.last_success, state.stale_after_seconds)
+            && sync
+                .node_hash
+                .is_some_and(|hash| data["checkpoint"]["hash"] == hash.to_string())
+    );
+    Ok(Json(data))
+}
+#[derive(Deserialize)]
+struct WeekdayQuery {
+    zone: String,
+}
+
+async fn activity_year(
+    State(state): State<AppState>,
+    Path(year): Path<i32>,
+) -> Result<impl IntoResponse, ApiError> {
+    let days = state.store.activity_year(year).await?.ok_or(ApiError(
+        StatusCode::NOT_FOUND,
+        "year is outside the indexed calendar",
+    ))?;
+    Ok(Json(days))
+}
+
+async fn zoned_weekdays(
+    State(state): State<AppState>,
+    Query(query): Query<WeekdayQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let zone = query
+        .zone
+        .parse()
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "unknown time zone"))?;
+    Ok(Json(state.store.zoned_weekdays(zone).await?))
+}
+async fn daily_flows(
+    State(state): State<AppState>,
+    Path(day): Path<u64>,
+) -> Result<impl IntoResponse, ApiError> {
+    let flows = state.store.daily_flows(day).await?.ok_or(ApiError(
+        StatusCode::NOT_FOUND,
+        "day is outside the indexed calendar",
+    ))?;
+    if flows.checked < flows.transactions {
+        state.store.request_flow_day(day);
+    }
+    Ok(Json(flows))
+}
+
 async fn dashboard(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
     let now = unix_time();
     let data = state.store.dashboard(now, 12).await?;

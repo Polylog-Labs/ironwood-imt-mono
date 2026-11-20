@@ -28,48 +28,33 @@
     <meta name="twitter:image" content="https://www.zcashanalytics.com/share.png?v=2" />
     <meta name="twitter:image:alt" content="Zcash Ironwood Note Commitment Visualizer, with a Merkle tree and the latest leaf path in blue." />
     <link rel="stylesheet" href="/dashboard.css" />
-    <script src="/dashboard.js" type="module"></script>
+    <link rel="stylesheet" href="/activity.css" media="not all" />
+    <script src="/navigation.js" type="module"></script>
   </head>
   <body data-has-snapshot="false" data-connection="loading">
-    <main>
-      <header class="page-header">
-        <a class="brand" href="/ironwood" aria-label="Ironwood home">
-          <svg
-            class="brand-mark"
-            viewBox="0 0 40 44"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M20 7v6M9 19v-6h22v6M9 23v7M3 36v-6h12v6M31 23v7M25 36v-6h12v6"
-              stroke="currentColor"
-              stroke-width="1.5"
-            />
-            <circle cx="20" cy="4" r="3" fill="currentColor" />
-            <circle cx="9" cy="21" r="2" fill="currentColor" />
-            <circle cx="31" cy="21" r="2" fill="currentColor" />
-            <path
-              d="M1 36h4v4H1ZM13 36h4v4h-4ZM23 36h4v4h-4ZM35 36h4v4h-4Z"
-              fill="currentColor"
-            />
-          </svg>
-          <span>ironwood<span class="brand-sub">TREE EXPLORER</span></span>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="wordmark" href="/">
+          <img src="/favicon.svg" width="37" height="37" alt="" />Zcash Analytics
         </a>
-        <div class="header-right">
-          <span class="network"
-            ><span class="cross">＋</span>
-            <span id="network">MAINNET</span></span
-          ><span id="status" class="status" role="status">Connecting</span
-          ><button
-            id="refresh"
-            class="icon-button"
-            type="button"
-            aria-label="Refresh data"
-            title="Refresh data"
-          >
-            ↻
-          </button>
-        </div>
+        <nav aria-label="Main navigation">
+          <a href="/">Pool activity</a>
+          <a href="/ironwood" aria-current="page">Tree explorer</a>
+        </nav>
+      </div>
+    </header>
+    <main id="tree-view">
+      <header class="intro">
+        <h1>Ironwood Incremental Merkle Tree Explorer</h1>
+        <button
+          id="refresh"
+          class="icon-button"
+          type="button"
+          aria-label="Refresh data"
+          title="Refresh data"
+        >
+          ↻
+        </button>
       </header>
 
       <section class="sync-panel" id="sync-panel" aria-labelledby="sync-title">
